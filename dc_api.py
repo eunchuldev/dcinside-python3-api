@@ -1,19 +1,6 @@
 #!/usr/bin/python3
-
-import sys
 import requests
-import re
-from datetime import timedelta, date, datetime
-import json
-import time
-import urllib
-import urllib.parse
-import random
-#from collections import OrderedDict
-#import logging
-#logging.basicConfig(level=logging.DEBUG)
 
-from pprint import pprint
 
 GET_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Mobile Safari/537.36",
@@ -66,7 +53,7 @@ def _get(sess, url, **kwargs):
             pass
     return res
 
-def getSession():
+def createSession():
     return requests.session()
 
 def upvote(board, is_miner, doc_no, num=1, sess=None):
@@ -78,7 +65,6 @@ def upvote(board, is_miner, doc_no, num=1, sess=None):
         def f():
             f.n += upvote(board, is_miner, doc_no)
         f.n = 0
-        #vpn.do(lambda: n += upvote(board, is_miner, doc_no), num)
         vpn.do(f, num)
         return f.n
     else:
@@ -226,7 +212,7 @@ def writeDoc(board, is_miner, title, contents, name=None, password=None, sess=No
     data["Block_key"] = new_block_key["data"]
     print(data)
     url = "http://upload.dcinside.com/g_write.php"
-    result = _post(sess, url, data=urllib.parse.urlencode(data, True), headers=headers).text
+    result = _post(sess, url, data=data, headers=headers).text
     doc_no, i = raw_parse(result, "no=", '"')
     if doc_no is None:
         print("Error while writing doc")
@@ -286,7 +272,7 @@ def modifyDoc(board, is_miner, doc_no, title, contents, name=None, password=None
         raise Exception(repr(new_block_key))
     data["Block_key"] = new_block_key["data"]
     url = "http://upload.dcinside.com/g_write.php"
-    result = _post(sess, url, data=urllib.parse.urlencode(data, True), headers=headers).text
+    result = _post(sess, url, data=data, headers=headers).text
     doc_no, i = raw_parse(result, "no=", '"')
     if doc_no is None:
         print("Error while writing doc")
@@ -405,16 +391,10 @@ def login(userid, password, sess=None):
     data["user_id"] = userid
     data["user_pw"] = password
     data["id_chk"] = ""
-    #data["mode"] = ""
     if "form_ipin" in data: del(data["form_ipin"])
     res = _post(sess, url, headers=headers, data=data, timeout=3)
-    #print(data)
-    #print(res.headers)
     while 0 <= res.text.find("rucode"):
-        #print("login fail!")
-        #time.sleep(3)
         return login(userid, password)
-    #time.sleep(1)
     return sess
     
 def logout(sess):
@@ -427,7 +407,6 @@ def logout(sess):
 def extractKeys(html, start_form_keyword):
     p = ""
     start, end, i = 0, 0, 0
-    #result = []#OrderedDict()
     result = {}
     (p, start) = raw_parse(html, start_form_keyword, '', i)
     (p, end) = raw_parse(html, '</form>', '', start)
@@ -441,11 +420,9 @@ def extractKeys(html, start_form_keyword):
         (value, i) = raw_parse(html, 'value="', '"', i)
         if i_max > i:
             result[name] = value
-            #result.append((i, name, value))
         else:
             i = i_max
             result[name] = ""
-            #result.append((i, name, ""))
     i = start
     while True:
         (p, i) = raw_parse(html, "<input type='hidde", "'", i)
@@ -455,11 +432,9 @@ def extractKeys(html, start_form_keyword):
         (value, i_max) = raw_parse(html, '', '>', i)
         (value, i) = raw_parse(html, "value='", "'", i)
         if i_max > i:
-            #result.append((i, name, value))
             result[name] = value
         else:
             i = i_max
-            #result.append((i, name, ""))
             result[name] = ""
     while True:
         (p, i) = raw_parse(html, '<input type="hidde', '"', i)
@@ -470,13 +445,10 @@ def extractKeys(html, start_form_keyword):
         (value, i) = raw_parse(html, 'value="', '"', i)
         if i_max > i:
             result[name] = value
-            #result.append((i, name, value))
         else:
             i = i_max
             result[name] = ""
-            #result.append((i, name, ""))
     return result
-    #return [i[1:] for i in sorted(result, key=lambda x: x[0])]
 
 def rraw_parse(text, start, end, offset=0):
     s = text.rfind(start, 0, offset)
