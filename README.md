@@ -1,8 +1,10 @@
 # dcinside-python-api
 Deadly simple non official dcinside api for python
+
+# Dependency
 It has optional dependency openvpn. It is used when you call upvote function with arguement num>1.
 
-# usage
+# Usage
 ```python
 import dc_api
 
