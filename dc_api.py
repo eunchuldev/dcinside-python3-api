@@ -68,12 +68,13 @@ def _get(sess, url, **kwargs):
 
 def getSession():
     return requests.session()
+
 def upvote(board, is_miner, doc_no, num=1, sess=None):
-    try:
-        import vpn
-    except:
-        return None
     if num>1:
+        try:
+            import vpn
+        except:
+            return None
         def f():
             f.n += upvote(board, is_miner, doc_no)
         f.n = 0
@@ -193,7 +194,7 @@ def iterableComments(board, is_miner, doc_no, num=-1, sess=None):
         else:
             page += 1
 
-def writeDoc(board, is_miner, name, password, title, contents, sess=None):
+def writeDoc(board, is_miner, title, contents, name=None, password=None, sess=None):
     # create session
     if sess is None:
         sess = requests.Session()
@@ -219,7 +220,7 @@ def writeDoc(board, is_miner, name, password, title, contents, sess=None):
     }
     new_block_key = _post(sess, url, data=verify_data, headers=headers).json()
     if new_block_key["msg"] != "5":
-        print("Error wile write doc(block_key)")
+        print("Error while write doc(block_key)")
         print(result)
         raise Exception(repr(new_block_key))
     data["Block_key"] = new_block_key["data"]
@@ -232,7 +233,7 @@ def writeDoc(board, is_miner, name, password, title, contents, sess=None):
         raise Exception(repr(result))
     return doc_no
 
-def modifyDoc(board, is_miner, doc_no, name, password, title, contents, sess=None):
+def modifyDoc(board, is_miner, doc_no, title, contents, name=None, password=None, sess=None):
     # create session
     if sess is None:
         sess = requests.Session()
@@ -280,7 +281,7 @@ def modifyDoc(board, is_miner, doc_no, name, password, title, contents, sess=Non
     }
     new_block_key = _post(sess, url, data=verify_data, headers=headers).json()
     if new_block_key["msg"] != "5":
-        print("Error wile modify doc(block_key)")
+        print("Error while modify doc(block_key)")
         print(result)
         raise Exception(repr(new_block_key))
     data["Block_key"] = new_block_key["data"]
@@ -292,7 +293,7 @@ def modifyDoc(board, is_miner, doc_no, name, password, title, contents, sess=Non
         raise Exception(repr(result))
     return doc_no
 
-def removeDoc(board, is_miner, doc_no, password, sess=None):
+def removeDoc(board, is_miner, doc_no, password=None, sess=None):
     # create session
     if sess is None:
         sess = requests.Session()
@@ -303,7 +304,7 @@ def removeDoc(board, is_miner, doc_no, password, sess=None):
         headers["Referer"] = "http://m.dcinside.com/password.php?id=%s&no=%s&mode=board_del2&flag=" % (board, doc_no)
         result = _post(sess, url, data={"token_verify": "nonuser_del"}, headers=headers).json()
         if result["msg"] != "5":
-            print("Error wile write doc(block_key)")
+            print("Error while write doc(block_key)")
             print(result)
             raise Exception(repr(result))
         data["mode"] = "board_del2"
@@ -324,7 +325,7 @@ def removeDoc(board, is_miner, doc_no, password, sess=None):
     return sess
 
 
-def writeComment(board, is_miner, doc_no, name, password, contents, sess=None):
+def writeComment(board, is_miner, doc_no, contents, name=None, password=None, sess=None):
     # create session
     if sess is None:
         sess = requests.Session()
@@ -361,7 +362,7 @@ def removeComment(board, is_miner, doc_no, comment_no, password=None, sess=None)
         url = "http://m.dcinside.com/_access_token.php"
         block_key = _post(sess, url, headers=headers, data={"token_verify": "nonuser_com_del"}, timeout=3).json()
         if block_key["msg"] != "5":
-            print("Error wile remove comment(block key)")
+            print("Error while remove comment(block key)")
             raise Exception(repr(block_key))
         data["con_key"] = block_key["data"]
     else:
@@ -376,7 +377,7 @@ def removeComment(board, is_miner, doc_no, comment_no, password=None, sess=None)
     result = _post(sess, url, headers=headers, data=data, timeout=3)
     result = result.json()
     if (type(result)==int and result != 1) or (type(result)==dict and result["msg"] != "1"):
-        print("Error wile write comment", result)
+        print("Error while write comment", result)
         raise Exception(repr(result))
     return comment_no
     
