@@ -1,15 +1,23 @@
 # dcinside-python3-api
 Deadly simple non official dcinside api for python3
+```python
+for doc in dc_api.board(board="programming"):
+    print(doc["title"], doc["name"], doc["date"]) 
+# => "땔감 벗어나는법.tip ㅇㅇ 1:41"
+# => "왜 이거 안돼냐? ㅇㅇ 1:40"
+# => ...
+```
 
 # Dependency
 It has optional dependency openvpn. It is used when you call upvote function with arguement num>1.
 
 # Usage
+place dc_api.py in your working directory
 ```python
 import dc_api
 
 # print five recent documents in programming gallery of dcinside
-for doc in dc_api.iterableBoard(board="programming", is_miner=False, num=5, starg_page=1):
+for doc in dc_api.board(board="programming", is_miner=False):
     print(doc["doc_no"])     # => "835027"
     print(doc["title"])      # => "땔감 벗어나는법.tip"
     print(doc["name"])       # => "ㅇㅇ"
@@ -19,12 +27,14 @@ for doc in dc_api.iterableBoard(board="programming", is_miner=False, num=5, star
     print(doc["votes"])      # => 0
     print(doc["views"])      # => 14
 
-# iterate documents in gallery infinitly
-for doc in dc_api.iterableBoard(board="programming", is_miner=False):
-    break
+# full API
+for doc in dc_api.board(board="programming", is_miner=False, num=5, start_page=2, include_contents=True, include_comments=True):
+    print(doc["contents"])  # => "<div ..... </div>"
+    print(doc["comments"])  # => <generator ... >
+    # => this is generator. see below usage
 
-# print five recent coments of doc in programming gallery of dcinside 
-for doc in dc_api.iterableComments(board="programming", is_miner=False, doc_no="835027", num=5):
+# print five recent comments of doc in programming gallery of dcinside 
+for doc in dc_api.comments(board="programming", is_miner=False, doc_no="835027", num=5):
     print(doc["comment_no"]) # => "110"
     print(doc["name"])       # => "morris"
     print(doc["contents"])   # => "요 4권만 읽으면 건물주 되기 가능??"

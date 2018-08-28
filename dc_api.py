@@ -56,21 +56,21 @@ def _get(sess, url, **kwargs):
 def createSession():
     return requests.session()
 
-def upvote(board, is_miner, doc_no, num=1, sess=None):
+def upvote(board_id, is_miner, doc_no, num=1, sess=None):
     if num>1:
         try:
             import vpn
         except:
             return None
         def f():
-            f.n += upvote(board, is_miner, doc_no)
+            f.n += upvote(board_id, is_miner, doc_no)
         f.n = 0
         vpn.do(f, num)
         return f.n
     else:
         if sess is None:
             sess = requests.session()
-        url = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board, doc_no)
+        url = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board_id, doc_no)
         res = _get(sess, url, headers=GET_HEADERS, timeout=3)
         _, s = raw_parse(res.text, "function join_recommend()", "{")
         _, e = raw_parse(res.text, "$.ajax", "{", s)
@@ -89,12 +89,12 @@ def upvote(board, is_miner, doc_no, num=1, sess=None):
         res = _post(sess, url, headers=headers, data=data, timeout=3)
         return ':"1"' in res.text
 
-def iterableBoard(board, is_miner=False, num=-1, start_page=1, sess=None):
+def board(board_id, is_miner=False, num=-1, start_page=1, include_contents=False, include_comments=False, sess=None):
     # create session
     if sess is None:
         sess = requests.session()
     url = "http://m.dcinside.com/list.php"
-    params = { "id": board, "page": str(start_page) }
+    params = { "id": board_id, "page": str(start_page) }
     i = 0
     last_doc_no = 0
     doc_in_page = 0
@@ -119,37 +119,49 @@ def iterableBoard(board, is_miner=False, num=-1, start_page=1, sess=None):
             has_image = (t == "ico_p_y")
             title, i = raw_parse(res.text, 'txt">', '<', i)
             t, i = raw_parse(res.text, 'txt_num">', "<", i)
-            comments = t[1:-1] if len(t)>0 else "0"
+            comment_num = t[1:-1] if len(t)>0 else "0"
             name, i = raw_parse(res.text, 'name">', "<", i)
             t, i = raw_parse(res.text, 'class="', '"', i)
             ip = None
             if t == "userip":
-                ip, i = raw_parse(res.text, '>', '<', i) 
+                ip, i = raw_parse(res.text, '>', '<', i)
             date, i = raw_parse(res.text, "<span>", "<", i)
             t, i = raw_parse(res.text, '조회', "<", i)
             views, i = raw_parse(res.text, '>', '<', i)
             t, i = raw_parse(res.text, '추천', "<", i)
             votes, i = raw_parse(res.text, '>', '<', i)
-            if "/" in comments: comments = sum((int(z) for z in comments.split("/")))
+            if "/" in comment_num: comment_num = sum((int(z) for z in comment_num.split("/")))
             if "/" in votes: votes = sum(int(z) for z in votes.split("/"))
             yield {
-                "doc_no": doc_no, "title": title, "name": name, "ip": ip, "date": date, "views": int(views), "votes": int(votes), "comments": int(comments),
-                }
+                "doc_no": doc_no, "title": title, "name": name, "ip": ip, "date": date, "views": int(views),
+                "votes": int(votes), "comment_num": int(comment_num),
+                "contents": contents(board_id, is_miner, doc_no, sess) if include_contents else None,
+                "comments": comments(board_id, is_miner, doc_no, sess) if include_comments else None
+                 }
             num -= 1
         page += 1
-        
-def iterableComments(board, is_miner, doc_no, num=-1, sess=None):
+
+def contents(board_id, is_miner, doc_no, sess=None):
     if sess is None:
         sess = requests.session()
-    referer = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board, doc_no)
+    url = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board_id, doc_no)
+    res = _get(sess, url, headers=GET_HEADERS, timeout=3)
+    p, i = raw_parse(res.text, '<div class="view_main', '"')
+    contents, _ = raw_parse(res.text, '>', '<div class="box_rebtn_wrap">', i)
+    return contents
+
+def comments(board_id, is_miner, doc_no, num=-1, sess=None):
+    if sess is None:
+        sess = requests.session()
+    referer = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board_id, doc_no)
     url = "http://m.dcinside.com/%s/comment_more_new.php" % ("m" if is_miner else "")
     page = 1
-    params = {"id": board, "no": str(doc_no), "com_page": str(page), "write": "write"}
+    params = {"id": board_id, "no": str(doc_no), "com_page": str(page), "write": "write"}
     headers = GET_HEADERS.copy()
     headers["Referer"] = referer
     headers["Accept-Language"] = "en-US,en;q=0.9"
     num_comments, i, count = 999999999,0,0
-    
+
     while num != 0:
         params["com_page"] = str(page)
         res = _get(sess, url, headers=headers, params=params, timeout=3)
@@ -180,11 +192,11 @@ def iterableComments(board, is_miner, doc_no, num=-1, sess=None):
         else:
             page += 1
 
-def writeDoc(board, is_miner, title, contents, name=None, password=None, sess=None):
+def writeDoc(board_id, is_miner, title, contents, name=None, password=None, sess=None):
     # create session
     if sess is None:
         sess = requests.Session()
-    url = "http://m.dcinside.com/write.php?id=%s&mode=write" % board
+    url = "http://m.dcinside.com/write.php?id=%s&mode=write" % board_id
     res = _get(sess, url, headers=GET_HEADERS)
     # get secret input
     data = extractKeys(res.text, 'g_write.php"')
@@ -196,7 +208,7 @@ def writeDoc(board, is_miner, title, contents, name=None, password=None, sess=No
     headers = POST_HEADERS.copy()
     headers["Referer"] = url
     url = "http://m.dcinside.com/_option_write.php"
-    
+
     verify_data = {
         "id": data["id"],
         "w_subject": title,
@@ -219,16 +231,16 @@ def writeDoc(board, is_miner, title, contents, name=None, password=None, sess=No
         raise Exception(repr(result))
     return doc_no
 
-def modifyDoc(board, is_miner, doc_no, title, contents, name=None, password=None, sess=None):
+def modifyDoc(board_id, is_miner, doc_no, title, contents, name=None, password=None, sess=None):
     # create session
     if sess is None:
         sess = requests.Session()
     url = "http://m.dcinside.com/write.php"
     res = None
     if password:
-        data = {"write_pw": password, "no": doc_no, "id": board, "mode": "modify", "page": ""}
+        data = {"write_pw": password, "no": doc_no, "id": board_id, "mode": "modify", "page": ""}
         headers = GET_HEADERS.copy()
-        headers["Referer"] = "http://m.dcinside.com/password.php?id=%s&no=%s&mode=modify" % (board, doc_no)
+        headers["Referer"] = "http://m.dcinside.com/password.php?id=%s&no=%s&mode=modify" % (board_id, doc_no)
         headers["Origin"] = "http://m.dcinside.com"
         headers["Host"] = "m.dcinside.com"
         headers["Accept-Language"] = "en-US,en;q=0.9"
@@ -236,9 +248,9 @@ def modifyDoc(board, is_miner, doc_no, title, contents, name=None, password=None
         headers["Connection"] = "keep-alive"
         res = _post(sess, url, data=data, headers=headers)
     else:
-        params = {"id": board, "no": doc_no, "mode": "modify", "page": ""}
+        params = {"id": board_id, "no": doc_no, "mode": "modify", "page": ""}
         headers = GET_HEADERS.copy()
-        headers["Referer"] = "http://m.dcinside.com/view.php?id=%s&no=%s&page=" % (board, doc_no)
+        headers["Referer"] = "http://m.dcinside.com/view.php?id=%s&no=%s&page=" % (board_id, doc_no)
         headers["Host"] = "m.dcinside.com"
         headers["Origin"] = "http://m.dcinside.com"
         headers["Accept-Language"] = "en-US,en;q=0.9"
@@ -279,15 +291,15 @@ def modifyDoc(board, is_miner, doc_no, title, contents, name=None, password=None
         raise Exception(repr(result))
     return doc_no
 
-def removeDoc(board, is_miner, doc_no, password=None, sess=None):
+def removeDoc(board_id, is_miner, doc_no, password=None, sess=None):
     # create session
     if sess is None:
         sess = requests.Session()
     headers = POST_HEADERS.copy()
-    data = {"no": doc_no, "id": board, "page": "", "mode": "board_del"}
+    data = {"no": doc_no, "id": board_id, "page": "", "mode": "board_del"}
     if password:
         url = "http://m.dcinside.com/_access_token.php"
-        headers["Referer"] = "http://m.dcinside.com/password.php?id=%s&no=%s&mode=board_del2&flag=" % (board, doc_no)
+        headers["Referer"] = "http://m.dcinside.com/password.php?id=%s&no=%s&mode=board_del2&flag=" % (board_id, doc_no)
         result = _post(sess, url, data={"token_verify": "nonuser_del"}, headers=headers).json()
         if result["msg"] != "5":
             print("Error while write doc(block_key)")
@@ -297,7 +309,7 @@ def removeDoc(board, is_miner, doc_no, password=None, sess=None):
         data["write_pw"] = password
         data["con_key"] = result["data"]
     else:
-        url = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board, doc_no)
+        url = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board_id, doc_no)
         res = _get(sess, url, headers=GET_HEADERS)
         user_no = raw_parse(res.text, '"user_no" value="', '"')[0]
         headers["Referer"] = url
@@ -311,11 +323,11 @@ def removeDoc(board, is_miner, doc_no, password=None, sess=None):
     return sess
 
 
-def writeComment(board, is_miner, doc_no, contents, name=None, password=None, sess=None):
+def writeComment(board_id, is_miner, doc_no, contents, name=None, password=None, sess=None):
     # create session
     if sess is None:
         sess = requests.Session()
-    url = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board, doc_no)
+    url = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board_id, doc_no)
     res = _get(sess, url, headers=GET_HEADERS, timeout=3)
     data = extractKeys(res.text, '"comment_write"')
     if name: data["comment_nick"] = name
@@ -337,14 +349,14 @@ def writeComment(board, is_miner, doc_no, contents, name=None, password=None, se
         raise Exception(repr(result))
     return doc_no
 
-def removeComment(board, is_miner, doc_no, comment_no, password=None, sess=None):
+def removeComment(board_id, is_miner, doc_no, comment_no, password=None, sess=None):
     if sess is None:
         sess = requests.Session()
     data = None
     headers = POST_HEADERS.copy()
-    headers["Referer"] = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board, doc_no)
-    if password: 
-        data = {"id": board, "no": doc_no, "iNo": comment_no, "user_no": "nonmember", "comment_pw": password, "best_chk": "", "con_key": None, "mode": "comment_del"}
+    headers["Referer"] = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board_id, doc_no)
+    if password:
+        data = {"id": board_id, "no": doc_no, "iNo": comment_no, "user_no": "nonmember", "comment_pw": password, "best_chk": "", "con_key": None, "mode": "comment_del"}
         url = "http://m.dcinside.com/_access_token.php"
         block_key = _post(sess, url, headers=headers, data={"token_verify": "nonuser_com_del"}, timeout=3).json()
         if block_key["msg"] != "5":
@@ -352,13 +364,13 @@ def removeComment(board, is_miner, doc_no, comment_no, password=None, sess=None)
             raise Exception(repr(block_key))
         data["con_key"] = block_key["data"]
     else:
-        url = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board, doc_no)
+        url = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board_id, doc_no)
         res = _get(sess, url, headers=GET_HEADERS, timeout=3)
-        board_id, i = raw_parse(res.text, '"board_id" value="', '"')
-        if not board_id:
+        bid, i = raw_parse(res.text, '"board_id" value="', '"')
+        if not bid:
             raise Exception("Non-password remove comment without login")
         user_no, _ = raw_parse(res.text, '"user_no" value="', '"', i)
-        data = {"id": board, "no": doc_no, "iNo": comment_no, "user_no": user_no, "board_id": board_id, "best_chk": "", "mode": "comment_del"}
+        data = {"id": board_id, "no": doc_no, "iNo": comment_no, "user_no": user_no, "board_id": bid, "best_chk": "", "mode": "comment_del"}
     url = "http://m.dcinside.com/_option_write.php"
     result = _post(sess, url, headers=headers, data=data, timeout=3)
     result = result.json()
@@ -366,7 +378,7 @@ def removeComment(board, is_miner, doc_no, comment_no, password=None, sess=None)
         print("Error while write comment", result)
         raise Exception(repr(result))
     return comment_no
-    
+
 
 def login(userid, password, sess=None):
     if sess is None:
@@ -396,14 +408,14 @@ def login(userid, password, sess=None):
     while 0 <= res.text.find("rucode"):
         return login(userid, password)
     return sess
-    
+
 def logout(sess):
     url = "http://m.dcinside.com/logout.php?r_url=m.dcinside.com%2Findex.php"
     headers = GET_HEADERS.copy()
     headers["Referer"] = "http://m.dcinside.com/index.php"
     res = _get(sess, url, headers=headers, timeout=3)
     return sess
-    
+
 def extractKeys(html, start_form_keyword):
     p = ""
     start, end, i = 0, 0, 0
