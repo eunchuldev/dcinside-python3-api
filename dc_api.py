@@ -532,5 +532,3 @@ def raw_parse(text, start, end, offset=0):
     if e == -1: return None, 0
     return text[s:e], e
 
-for i in board('baseball_new7', recommend=True, num=2, include_comments=True, include_contents=True):
-    print(i)
