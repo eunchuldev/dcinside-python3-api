@@ -89,12 +89,13 @@ def upvote(board_id, is_miner, doc_no, num=1, sess=None):
         res = _post(sess, url, headers=headers, data=data, timeout=3)
         return ':"1"' in res.text
 
-def board(board_id, is_miner=False, num=-1, start_page=1, include_contents=False, include_comments=False, sess=None):
+def board(board_id, is_miner=False, num=-1, start_page=1, include_contents=False, include_comments=False, recommend=False, sess=None):
     # create session
     if sess is None:
         sess = requests.session()
     url = "http://m.dcinside.com/list.php"
     params = { "id": board_id, "page": str(start_page) }
+    if recommend: params["recommend"] = 1
     i = 0
     last_doc_no = 0
     doc_in_page = 0
@@ -130,25 +131,78 @@ def board(board_id, is_miner=False, num=-1, start_page=1, include_contents=False
             views, i = raw_parse(res.text, '>', '<', i)
             t, i = raw_parse(res.text, '추천', "<", i)
             votes, i = raw_parse(res.text, '>', '<', i)
+            if include_contents:
+                contents, images = doc(board_id, is_miner, doc_no, sess)
             if "/" in comment_num: comment_num = sum((int(z) for z in comment_num.split("/")))
             if "/" in votes: votes = sum(int(z) for z in votes.split("/"))
             yield {
-                "doc_no": doc_no, "title": title, "name": name, "ip": ip, "date": date, "views": int(views),
-                "votes": int(votes), "comment_num": int(comment_num),
-                "contents": contents(board_id, is_miner, doc_no, sess) if include_contents else None,
+                "doc_no": doc_no, "title": title, "name": name, "ip": ip, "date": date, "view_num": int(views),
+                "vote_num": int(votes), "comment_num": int(comment_num),
+                "contents": contents if include_contents else None,
+                "images": images if include_contents else None,
                 "comments": comments(board_id, is_miner, doc_no, sess) if include_comments else None
                  }
             num -= 1
         page += 1
 
-def contents(board_id, is_miner, doc_no, sess=None):
+from html.parser import HTMLParser
+class DCDocParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.in_main = False
+        self.images = []
+        self.contents = []
+        self.in_contents = False
+        self.in_blacklist = False
+        self.blacklist_level = 0
+        self.contents_level = 0
+    def handle_starttag(self, tag, attrs):
+        if tag in ('script', 'iframe'):
+            self.in_blacklist = True
+        elif self.in_main and tag == 'img':
+            for n, v in attrs:
+                if n=='src': src = v
+            if src.startswith('http://dcimg6.'):
+                src = 'http://image.dcinside.com/viewimagePop.php?no=%s' % src[src.find('no=') + 3:]
+            self.images.append(src)
+        elif tag == 'div':
+            for n, v in attrs:
+                if v=="memo_img" and n=='id':
+                    self.in_contents = True
+                if v=="view_main" and n=='class':
+                    self.in_main = True
+        if self.in_contents: self.contents_level += 1
+        if self.in_blacklist: self.blacklist_level += 1
+    def handle_data(self, data):
+        if not self.in_blacklist and self.in_contents and data.strip(): self.contents.append(data.strip())
+    def handle_endtag(self, tag):
+        if self.in_blacklist:
+            self.blacklist_level -= 1
+            if self.blacklist_level == 0:
+                self.in_blacklist = False
+        if self.in_contents:
+            self.contents_level -= 1
+            if tag in ('div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'br'):
+                if self.contents and self.contents[-1] != '\n': self.contents.append('\n')
+            if self.contents_level == 0:
+                self.in_contents = False
+                self.in_main = False
+                self.contents = ''.join(self.contents).strip()
+
+
+def doc(board_id, is_miner, doc_no, sess=None):
     if sess is None:
         sess = requests.session()
     url = "http://m.dcinside.com/view.php?id=%s&no=%s" % (board_id, doc_no)
     res = _get(sess, url, headers=GET_HEADERS, timeout=3)
-    p, i = raw_parse(res.text, '<div class="view_main', '"')
-    contents, _ = raw_parse(res.text, '>', '<div class="box_rebtn_wrap">', i)
-    return contents
+    parser = DCDocParser()
+    parser.feed(res.text)
+    return parser.contents, parser.images
+    #_, i = raw_parse(res.text, '<div class="view_main', '"')
+    #contents_html, _ = raw_parse(res.text, '>', '<div class="box_rebtn_wrap">', i)
+    #contents, i = raw_parse(contents_html, '<div id="memo_img">', '<!--170530')
+    #return contents[85:-86]
+
 
 def comments(board_id, is_miner, doc_no, num=-1, sess=None):
     if sess is None:
@@ -477,3 +531,6 @@ def raw_parse(text, start, end, offset=0):
     e = text.find(end, s)
     if e == -1: return None, 0
     return text[s:e], e
+
+for i in board('baseball_new7', recommend=True, num=2, include_comments=True, include_contents=True):
+    print(i)
