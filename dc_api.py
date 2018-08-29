@@ -140,7 +140,7 @@ def board(board_id, is_miner=False, num=-1, start_page=1, include_contents=False
                 "vote_num": int(votes), "comment_num": int(comment_num),
                 "contents": contents if include_contents else None,
                 "images": images if include_contents else None,
-                "comments": comments(board_id, is_miner, doc_no, sess) if include_comments else None
+                "comments": comments(board_id, is_miner, doc_no, sess=sess) if include_comments else None
                  }
             num -= 1
         page += 1
