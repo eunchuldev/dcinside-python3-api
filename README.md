@@ -19,14 +19,14 @@ for doc in dc_api.board(board_id="programming", include_contents=True, include_c
 ```
 
 # Dependency
-It has optional dependency openvpn. It is used when you call upvote function with arguement num>1.
+requests, and It has optional dependency openvpn. It is used when you call upvote function with arguement num>1.
 
 # Usage
 Place dc_api.py in your working directory
 ```python
 import dc_api
 
-# print five recent documents in programming gallery of dcinside
+# attributes of document header
 for doc in dc_api.board(board_id="programming", is_miner=False):
     print(doc["doc_no"])     # => "835027"
     print(doc["title"])      # => "땔감 벗어나는법.tip"
@@ -37,14 +37,14 @@ for doc in dc_api.board(board_id="programming", is_miner=False):
     print(doc["vote_num"])   # => 0
     print(doc["view_num"])   # => 14
 
-# full API
+# full API of dc_api.board
 for doc in dc_api.board(board_id="programming", is_miner=False, num=5, start_page=2, include_contents=True, include_comments=True, recommend=True):
-    print(doc["contents"])  # => "<div ..... </div>"
-    for com in doc["comments"]:
+    print(doc["contents"])      # => "<div ..... </div>"
+    for com in doc["comments"]: # doc["comments"] is a generator, not a list.
         print(com["contents"])
-    print(doc["comments"])  # => "<generator ... >"
-    # => this is a generator. See below usage
-
+    for img in doc["images"]:   # doc["images"] is a list
+        print(img)              # => "http://dcimg6.dcinside.com/..."
+        
 # print document contents and images
 contents, images = dc_api.doc(board_id="programming", is_miner=False, doc_no="835027")
 print(contents, images)
@@ -63,17 +63,17 @@ doc_no = dc_api.writeDoc(board_id="programming", is_miner=False,
                          name="얄파고", password="1234", 
                          title="제목", contents="내용")
 # modify doc
-doc_no = dc_api.modifyDoc(board_id="programming", is_miner=False, 
+doc_no = dc_api.modifyDoc(board_id="programming", is_miner=False, doc_no=doc_no, 
                           name="얄파고", password="1234", 
                           title="수정된 제목", contents="수정된 내용")
 
 # write comment
-comment_no = writeComment(board_id="programming", is_miner=False, 
-                          doc_no=doc_no, name="얄파고", password="1234", contents="테스트 댓글")
+comment_no = writeComment(board_id="programming", is_miner=False, doc_no=doc_no, 
+                          name="얄파고", password="1234", contents="테스트 댓글")
                           
 # delete comment
-dc_api.removeComment(board_id="programming", is_miner=False, 
-                     doc_no=doc_no, comment_no=comment_no, password="1234")
+dc_api.removeComment(board_id="programming", is_miner=False, doc_no=doc_no, 
+                     comment_no=comment_no, password="1234")
 
 # delete doc
 dc_api.removeDoc(board_id="programming", is_miner=False, doc_no=doc_no, password="1234")
