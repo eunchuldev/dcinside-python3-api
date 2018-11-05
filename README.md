@@ -2,75 +2,86 @@
 Deadly simple non official dcinside api for python3
 ```python
 # 프로그래밍 갤러리 글 헤더 무한 크롤링(빠름)
-for doc in dc_api.board(board_id="programming"):
-    print(doc["title"], doc["name"], doc["date"]) 
+for doc in dc_api.board(board_id="programming", skip_contents=True):
+    print(doc["id"], doc["title"], doc["name"], doc["date"]) 
+# => "131293"
 # => "땔감 벗어나는법.tip ㅇㅇ 1:41"
 # => "왜 이거 안돼냐? ㅇㅇ 1:40"
 # => ...
 ```
 ```python
 # 프로그래밍 갤러리 개념글 글내용, 이미지, 댓글 포함 무한 크롤링(느림)
-for doc in dc_api.board(board_id="programming", include_contents=True, include_comments=True, recommend=True):
+for doc in dc_api.board(board_id="programming", recommend=True):
     print(doc["contents"])  # => "ㅗㅜㅑ\n미친다.."
     print(doc["images"])    # => "[imgsrc1, imgsrc2, ...]"
     for com in doc["comments"]:
         print(com["name"], com["contents"], com["date"])
         # => "ㅇㅇ 나 남잔데 이런거 별로 10:20"
 ```
+```python
+# 댓글쓰기
+dc_api.write_comment(board_id="programming", doc_id="149123", name="ㅇㅇ", pw="1234", contents="ㅇㅈ")
+# 로그인 후 글쓰기
+dc_api.login(id="SAMPLE_ID", pw="SAMPLE_PW")
+dc_api.write_comment(board_id="programming", doc_id="149123", contents="설리")
+```
 
 # Dependency
-requests, and It has optional dependency openvpn. It is used when you call upvote function with arguement num>1.
+requests, lxml 
 
 # Usage
 Place dc_api.py in your working directory
 ```python
 import dc_api
 
-# attributes of document header
-for doc in dc_api.board(board_id="programming", is_miner=False):
-    print(doc["doc_no"])     # => "835027"
+# full API
+# for doc in dc_api.board(board_id="programming", num=5, start_page=2, skip_contents=True, recommend=True):
+
+# full attributes of document and comment
+for doc in dc_api.board(board_id="programming"):
+    print(doc["id"])         # => "835027"
     print(doc["title"])      # => "땔감 벗어나는법.tip"
-    print(doc["name"])       # => "ㅇㅇ"
-    print(doc["ip"])         # => "10.20"
-    print(doc["date"])       # => "1:41"
+    print(doc["author"])     # => "ㅇㅇ(10.20)"
+    print(doc["has_image"])  # => True
+    print(doc["time"])       # => "1:41"
     print(doc["comment_num"])# => 3
-    print(doc["vote_num"])   # => 0
+    print(doc["voteup_num"]) # => 0
     print(doc["view_num"])   # => 14
+    # Belows are None if parameter skip_contents=True
+    print(doc["contents"])   # => "자바를 한다" 
+    print(doc["imgs"])       # => ["http://static.dcinside.com/1o2i3joie", ...]
+    print(doc["comments"])   # => generator
+    for com in doc["comments"]:
+        print(com["id"])        # => "123123"
+        print(com["parent_id"]) # => "123122"
+        print(com["time"])      # => "1:55"
+        print(com["author"])    # => "ㅇㅇ(192.23)"
+        print(com["contents"])  # => "개솔 ㄴㄴ"
+        if com["dccon"]: 
+            print(com["dccon"]) # => "http://dcimg5.dcinside.com/dccon.php?...."
 
-# full API of dc_api.board
-for doc in dc_api.board(board_id="programming", is_miner=False, num=5, start_page=2, include_contents=True, include_comments=True, recommend=True):
-    print(doc["contents"])      # => "<div ..... </div>"
-    for com in doc["comments"]: # doc["comments"] is a generator, not a list.
-        print(com["contents"])
-    for img in doc["images"]:   # doc["images"] is a list
-        print(img)              # => "http://dcimg6.dcinside.com/..."
         
-# print document contents and images
-contents, images = dc_api.doc(board_id="programming", is_miner=False, doc_no="835027")
-print(contents, images)
-# => "ㅗㅜㅑ\nㅗㅜㅑ.. [imgsrc1, imgsrc2, ..]"
+# print document contents, images, and comments
+contents, images, comments = dc_api.document(board_id="programming", doc_no="835027")
+print(contents, images, comments)
+# => "ㅗㅜㅑ\nㅗㅜㅑ.. [imgsrc1, imgsrc2, ..] <generator>"
 
-# print five recent comments of doc in programming gallery of dcinside 
-for doc in dc_api.comments(board_id="programming", is_miner=False, doc_no="835027", num=5):
-    print(doc["comment_no"]) # => "110"
-    print(doc["name"])       # => "morris"
-    print(doc["contents"])   # => "요 4권만 읽으면 건물주 되기 가능??"
-    print(doc["ip"])         # => ""
-    print(doc["date"])       # => "2018.04.15 02:34:16"
-
+'''(Under developement)
 # write doc
-doc_no = dc_api.writeDoc(board_id="programming", is_miner=False, 
-                         name="얄파고", password="1234", 
-                         title="제목", contents="내용")
+doc_no = dc_api.write_document(board_id="programming",
+                               name="점진적자살", pw="1234", 
+                               title="제목", contents="내용")
 # modify doc
 doc_no = dc_api.modifyDoc(board_id="programming", is_miner=False, doc_no=doc_no, 
                           name="얄파고", password="1234", 
                           title="수정된 제목", contents="수정된 내용")
+'''
 
 # write comment
-comment_no = writeComment(board_id="programming", is_miner=False, doc_no=doc_no, 
-                          name="얄파고", password="1234", contents="테스트 댓글")
+comment_no = write_comment(board_id="programming", doc_no=doc_no, 
+                           name="점진적자살", pw="1234", contents="아님")
                           
+'''(Under development)
 # delete comment
 dc_api.removeComment(board_id="programming", is_miner=False, doc_no=doc_no, 
                      comment_no=comment_no, password="1234")
@@ -83,22 +94,30 @@ dc_api.upvote(board_id="programming", is_miner=False, doc_no=doc_no)
 
 # upvote many times(it needs openvpn)
 dc_api.upvote(board_id="programming", is_miner=False, doc_no=doc_no, num=10)
+'''
 
 # login
-sess = dc_api.login(userid="", password="")
+# if you skip the sess parameter, it will use the default session(and it affects all other API calls that use default session)
+dc_api.login(id="", pw="", sess=dc_api.gen_session())
 
+'''(Under development)
 # write doc with logined session
+# if you have skiped sess parameter of login API, you should also skip following API's sess parameters
 doc_no = dc_api.writeDoc(sess=sess, board_id="programming", is_miner=False,                          
                          title="제목", contents="내용")
                          
 # modify doc with logined session
 doc_no = dc_api.modifyDoc(sess=sess, board_id="programming", is_miner=False, 
                           title="수정된 제목", contents="수정된 내용")
+'''
 
 # write comment with logined session
-comment_no = writeComment(sess=sess, board_id="programming", is_miner=False, 
-                          doc_no=doc_no, contents="테스트 댓글")
+# if you have skiped sess parameter of login API, you should also skip following API's sess parameters
+# write comment
+comment_no = write_comment(sess=sess, board_id="programming", doc_no=doc_no, 
+                           name="점진적자살", pw="1234", contents="아님")
                           
+'''(Under development)
 # delete comment with logined session
 dc_api.removeComment(sess=sess, board_id="programming", is_miner=False, 
                      doc_no=doc_no, comment_no=comment_no)
@@ -108,5 +127,6 @@ dc_api.upvote(board_id="programming", is_miner=False, doc_no=doc_no, sess=sess)
 
 # logout
 dc_api.logout(sess)
+'''
 
 ```
