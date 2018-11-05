@@ -5,18 +5,18 @@ Deadly simple non official dcinside api for python3
 for doc in dc_api.board(board_id="programming", skip_contents=True):
     print(doc["id"], doc["title"], doc["name"], doc["date"]) 
 # => "131293"
-# => "땔감 벗어나는법.tip ㅇㅇ 1:41"
-# => "왜 이거 안돼냐? ㅇㅇ 1:40"
+# => "땔감 벗어나는법.tip ㅇㅇ(10.42) 1:41"
+# => "왜 이거 안돼냐? ㅇㅇ(192.231) 1:40"
 # => ...
 ```
 ```python
-# 프로그래밍 갤러리 개념글 글내용, 이미지, 댓글 포함 무한 크롤링(느림)
-for doc in dc_api.board(board_id="programming", recommend=True):
+# 프로그래밍 갤러리 글내용, 이미지, 댓글 포함 무한 크롤링(느림)
+for doc in dc_api.board(board_id="programming"):
     print(doc["contents"])  # => "ㅗㅜㅑ\n미친다.."
     print(doc["images"])    # => "[imgsrc1, imgsrc2, ...]"
     for com in doc["comments"]:
         print(com["name"], com["contents"], com["date"])
-        # => "ㅇㅇ 나 남잔데 이런거 별로 10:20"
+        # => "ㅇㅇ(10.42) 나 남잔데 이런거 별로 10:20"
 ```
 ```python
 # 댓글쓰기
@@ -27,7 +27,7 @@ dc_api.write_comment(board_id="programming", doc_id="149123", contents="설리")
 ```
 
 # Dependency
-requests, lxml 
+python3 requests, lxml 
 
 # Usage
 Place dc_api.py in your working directory
@@ -35,7 +35,7 @@ Place dc_api.py in your working directory
 import dc_api
 
 # full API
-# for doc in dc_api.board(board_id="programming", num=5, start_page=2, skip_contents=True, recommend=True):
+# for doc in dc_api.board(board_id="programming", num=5, start_page=2, skip_contents=True):
 
 # full attributes of document and comment
 for doc in dc_api.board(board_id="programming"):
