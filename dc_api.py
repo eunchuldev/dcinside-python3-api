@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import time
 import requests
 import json
 from requests.adapters import HTTPAdapter
@@ -8,6 +9,9 @@ import lxml.html
 GET_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Mobile Safari/537.36",
      }
+ALTERNATIVE_GET_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/70.0.3538.67 Safari/537.36",
+    }
 XML_HTTP_REQ_HEADERS = {
     "Accept": "*/*",
     "Connection": "keep-alive",
@@ -17,7 +21,7 @@ XML_HTTP_REQ_HEADERS = {
     "Accept-Language": "en-US,en;q=0.9,ko;q=0.8",
     "Cache-Control": "no-cache",
     "Pragma": "no-cache",
-    "X-Requested-With": "XMLHttpRequest"
+    "X-Requested-With": "XMLHttpRequest",
     }
 POST_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
@@ -31,32 +35,25 @@ POST_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.181 Mobile Safari/537.36",
     }
 
-def raw_parse(text, start, end, offset=0):
-    s = text.find(start, offset)
-    if s == -1: return None, 0
-    s += len(start)
-    e = text.find(end, s)
-    if e == -1: return None, 0
-    return text[s:e], e
-
+TIMEOUT = 3
 def gen_session():
     sess = requests.Session()
-    sess.mount("http://", HTTPAdapter(max_retries=5))
+    sess.mount("http://", HTTPAdapter(max_retries=100))
     sess.headers.update(GET_HEADERS)
     sess.head("http://m.dcinside.com")
     return sess
-default_sess = gen_session()
+DEFAULT_SESS = gen_session()
 
-def board(board_id, num=-1, start_page=1, skip_contents=False, sess=default_sess):
+def board(board_id, num=-1, start_page=1, skip_contents=False, doc_id_upper_limit=None, sess=DEFAULT_SESS):
     page = start_page
     while num:
         url = "http://m.dcinside.com/board/{}?page={}".format(board_id, page)
-        res = sess.get(url)
+        res = sess.get(url, timeout=TIMEOUT)
         parsed = lxml.html.fromstring(res.text)
         doc_headers = (i[0] for i in parsed.xpath("//ul[@class='gall-detail-lst']/li") if not i.get("class", "").startswith("ad"))
         for doc in doc_headers:
-            #if a.tag != 'a': continue
             doc_id = doc[0].get("href").split("/")[-1].split("?")[0]
+            if doc_id_upper_limit and int(doc_id_upper_limit) <= int(doc_id): continue
             contents, imgs, cmts = document(board_id, doc_id, sess=sess) if not skip_contents else (None, None, None)
             yield({
                 "id": doc_id,
@@ -76,20 +73,34 @@ def board(board_id, num=-1, start_page=1, skip_contents=False, sess=default_sess
         if not doc_headers: break
         else: page+=1
 
-def document(board_id, doc_id, sess=default_sess):
+def document(board_id, doc_id, sess=DEFAULT_SESS):
     url = "http://m.dcinside.com/board/{}/{}".format(board_id, doc_id)
-    res = sess.get(url)
+    res = sess.get(url, timeout=TIMEOUT)
     parsed = lxml.html.fromstring(res.text)
-    doc_content = parsed.xpath("//div[@class='thum-txtin']")[0]
-    #csrf_token = parsed.xpath("//meta[@name='csrf-token']")[0].get("content")
-    return '\n'.join(i.strip() for i in doc_content.itertext() if i.strip() and not i.strip().startswith("이미지 광고")), [i.get("src") for i in doc_content.xpath("//img") if not i.get("src","").startswith("https://nstatic")], comments(board_id, doc_id, sess=sess)
+    doc_content_container = parsed.xpath("//div[@class='thum-txtin']")
+    if len(doc_content_container):
+        doc_content = parsed.xpath("//div[@class='thum-txtin']")[0]
+        for adv in doc_content.xpath("div[@class='adv-groupin']"):
+            adv.getparent().remove(adv)
+        return '\n'.join(i.strip() for i in doc_content.itertext() if i.strip() and not i.strip().startswith("이미지 광고")), [i.get("src") for i in doc_content.xpath("//img") if not i.get("src","").startswith("https://nstatic")], comments(board_id, doc_id, sess=sess)
+    else:
+        # fail due to unusual tags in mobile version
+        # at now, just skip it
+        return "", [], []
+    ''' !TODO: use an alternative(PC) protocol to fetch document
+    else:
+        url = "http://gall.dcinside.com/{}?no={}".format(board_id, doc_id)
+        res = sess.get(url, timeout=TIMEOUT, headers=ALTERNATIVE_GET_HEADERS)
+        parsed = lxml.html.fromstring(res.text)
+        doc_content = parsed.xpath("//div[@class='thum-txtin']")[0]
+        return '\n'.join(i.strip() for i in doc_content.itertext() if i.strip() and not i.strip().startswith("이미지 광고")), [i.get("src") for i in doc_content.xpath("//img") if not i.get("src","").startswith("https://nstatic")], comments(board_id, doc_id, sess=sess)
+    '''
 
-def comments(board_id, doc_id, sess=default_sess, start_page=1):
+def comments(board_id, doc_id, sess=DEFAULT_SESS, start_page=1):
     url = "http://m.dcinside.com/ajax/response-comment"
-    #header["X-CSRF-TOKEN"] = csrf_token
     for page in range(start_page, 999999):
         payload = {"id": board_id, "no": doc_id, "cpage": page, "managerskill":"", "del_scope": "1", "csort": ""}
-        res = sess.post(url, headers=XML_HTTP_REQ_HEADERS, data=payload)
+        res = sess.post(url, headers=XML_HTTP_REQ_HEADERS, data=payload, timeout=TIMEOUT)
         parsed = lxml.html.fromstring(res.text)
         if not len(parsed[1].xpath("li")): break
         for li in parsed[1].xpath("li"):
@@ -100,7 +111,8 @@ def comments(board_id, doc_id, sess=default_sess, start_page=1):
                 "author": li[0].text + ("({})".format(li[0][0].text) if li[0][0].text else ""),
                 "author_id": li[0][1].text if len(li[0]) > 1 else None,
                 "contents": '\n'.join(i.strip() for i in li[1].itertext()),
-                "dccon": li[1][0].get("src", None) if len(li[1]) else None,
+                "dccon": li[1][0].get("src", None) if len(li[1]) and li[1][0].tag=="img" else None,
+                "voice": li[1][0].get("src", None) if len(li[1]) and li[1][0].tag=="iframe" else None,
                 "time": li[2].text, })
         page_num_els = parsed.xpath("span[@class='pgnum']")
         if page_num_els:
@@ -109,24 +121,21 @@ def comments(board_id, doc_id, sess=default_sess, start_page=1):
             if page == next(p)[1:]: break
         else: break
 
-def all_user_dccon(sess=default_sess):
-    #header["X-CSRF-TOKEN"] = csrf_token
+def all_user_dccon(sess=DEFAULT_SESS):
     url = "http://m.dcinside.com/dccon/getDccon"
-    res = sess.post(url, headers=XML_HTTP_REQ_HEADERS)
+    res = sess.post(url, headers=XML_HTTP_REQ_HEADERS, timeout=TIMEOUT)
     parsed = lxml.html.fromstring(res.text)
     dccon_package_len = len(parsed.xpath("//ul[@class='dccon-top-slide swiper-wrapper']")[0])-1
-    print(lxml.html.tostring(parsed.xpath("//ul[@class='dccon-top-slide swiper-wrapper']")[0]))
-    print(dccon_package_len)
     dccons = []
     for i in range(dccon_package_len):
         url = "http://m.dcinside.com/dccon/getDccon_tab"
         payload = {"idx": str(i+1)}
-        res = sess.post(url, headers=XML_HTTP_REQ_HEADERS, data=payload)
+        res = sess.post(url, headers=XML_HTTP_REQ_HEADERS, data=payload, timeout=TIMEOUT)
         parsed = lxml.html.fromstring(res.text)
-        dccons += [{"id": li[0].get("data-dccon-detail"), "pakage_id": li[0].get("data-dccon-package"), "src": li[0][0][0][0].get("src")} for li in parsed[0][0]]
+        dccons += [{"id": li[0].get("data-dccon-detail"), "pakage_id": li[0].get("data-dccon-package"), "src": li[0][0][0][0].get("src")} for ul in parsed[0] for li in ul]
     return dccons
 
-def login(id, pw, sess=default_sess):
+def login(id, pw, sess=DEFAULT_SESS):
     con_key = __access("dc_login", "http://m.dcinside.com/auth/login?r_url=http://m.dcinside.com/")
     url = "https://dcid.dcinside.com/join/mobile_login_ok_new.php"
     header = POST_HEADERS
@@ -139,16 +148,17 @@ def login(id, pw, sess=default_sess):
             "id_chk": "on",
             "con_key": con_key,
             "r_url": "http://m.dcinside.com/" }
-    res = sess.post(url, headers=header, data=payload)
+    res = sess.post(url, headers=header, data=payload, timeout=TIMEOUT)
     return sess
 
-def write_comment(board_id, doc_id, contents, dccon_id="", parent_comment_id="", name="", pw="", sess=default_sess):
+def write_comment(board_id, doc_id, contents="", dccon_id="", dccon_src="", parent_comment_id="", name="", pw="", sess=DEFAULT_SESS):
     url = "http://m.dcinside.com/board/{}/{}".format(board_id, doc_id)
-    res = sess.get(url)
+    res = sess.get(url, timeout=TIMEOUT)
     parsed = lxml.html.fromstring(res.text)
+    hide_robot = parsed.xpath("//input[@class='hide-robot']")[0].get("name")
     csrf_token = parsed.xpath("//meta[@name='csrf-token']")[0].get("content")
     con_key = __access("com_submit", url, require_conkey=False, sess=sess)
-    header = XML_HTTP_REQ_HEADERS
+    header = XML_HTTP_REQ_HEADERS.copy()
     header["Referer"] = url
     header["Host"] = "m.dcinside.com"
     header["Origin"] = "http://m.dcinside.com"
@@ -168,34 +178,92 @@ def write_comment(board_id, doc_id, contents, dccon_id="", parent_comment_id="",
             "reple_id":"",
             "cpage": "1",
             "con_key": con_key,
+            hide_robot: "1",
             }
     if dccon_id: payload["detail_idx"] = dccon_id
-    return str(json.loads(sess.post(url, headers=header, data=payload).text)["data"])
+    if dccon_src: payload["comment_memo"] = "<img src='{}'>".format(dccon_src)
+    parsed = json.loads(sess.post(url, headers=header, data=payload, timeout=TIMEOUT).text)
+    if "data" not in parsed: 
+        raise Exception(str(parsed))
+    return str(parsed["data"])
 
-def __access(token_verify, target_url, require_conkey=True, sess=default_sess):
+def write_document(board_id, title="", contents="", name="", pw="", sess=DEFAULT_SESS):
+    url = "http://m.dcinside.com/write/{}".format(board_id)
+    res = sess.get(url, timeout=TIMEOUT)
+    parsed = lxml.html.fromstring(res.text)
+    rand_code = parsed.xpath("//input[@name='code']")
+    rand_code = rand_code[0].get("value") if len(rand_code) else None
+    user_id = parsed.xpath("//input[@name='user_id']")[0].get("value") if not name else None
+    gall_id = parsed.xpath("//input[@id='gall_id']")[0].get("value")
+    mobile_key = parsed.xpath("//input[@id='mobile_key']")[0].get("value")
+    hide_robot = parsed.xpath("//input[@class='hide-robot']")[0].get("name")
+    csrf_token = parsed.xpath("//meta[@name='csrf-token']")[0].get("content")
+    con_key = __access("dc_check2", url, require_conkey=False, sess=sess)
+    header = XML_HTTP_REQ_HEADERS.copy()
+    header["Referer"] = url
+    header["Host"] = "m.dcinside.com"
+    header["Origin"] = "http://m.dcinside.com"
+    header["X-CSRF-TOKEN"] = csrf_token
+    url = "http://m.dcinside.com/ajax/w_filter"
+    payload = {
+            "subject": title,
+            "memo": contents,
+            "id": gall_id,
+            }
+    if rand_code:
+        payload["code"] = rand_code
+    res = json.loads(sess.post(url, headers=header, data=payload, timeout=TIMEOUT).text)
+    if not res["result"]:
+        raise Exception(str(res))
+    url = "http://upload.dcinside.com/write_new.php"
+    header["Host"] = "upload.dcinside.com"
+    payload = {
+            "subject": title,
+            "memo": contents,
+            hide_robot: "1",
+            "id": gall_id,
+            "contentOrder": "order_memo",
+            "mode": "write",
+            "Block_key": con_key,
+            "bgm":"",
+            "iData":"",
+            "yData":"",
+            "tmp":"",
+            "mobile_key": mobile_key,
+        }
+    if rand_code:
+        payload["code"] = rand_code
+    if name:
+        payload["name"] = name
+        payload["password"] = pw
+    else:
+        payload["user_id"] = user_id
+    res = sess.post(url, headers=header, data=payload, timeout=TIMEOUT).text
+    return res[res.rfind("/")+1:-2]
+
+def __access(token_verify, target_url, require_conkey=True, sess=DEFAULT_SESS):
     if require_conkey:
-        res = sess.get(target_url)
+        res = sess.get(target_url, timeout=TIMEOUT)
         parsed = lxml.html.fromstring(res.text)
         con_key = parsed.xpath("//input[@id='con_key']")[0].get("value")
         payload = { "token_verify": token_verify, "con_key": con_key }
     else:
         payload = { "token_verify": token_verify, }
     url = "http://m.dcinside.com/ajax/access"
-    res = sess.post(url, headers=XML_HTTP_REQ_HEADERS, data=payload)
+    res = sess.post(url, headers=XML_HTTP_REQ_HEADERS, data=payload, timeout=TIMEOUT)
     return json.loads(res.text)["Block_key"]
 
 if __name__ == "__main__":
-    board_id = "programming"
+    board_id = "alphago"
+    '''
     for i in board(board_id, num=1, skip_contents=False):
         print(write_comment(board_id, i["id"], "아님", name="점진적자살", pw="1234"))
         print(write_comment(board_id, i["id"], "맞음", name="점진적자살", pw="1234"))
-    #login("bot123", "1q2w3e4r!")
-    #board_id = "alphago"
-    #id = "bot123"
-    #pw = "1q2w3e4r!"
+    '''
+    login("bot123", "1q2w3e4r!")
+    print(write_document(board_id, "1234", "12345"))
     #sess = login(id, pw)
     #print(len(all_user_dccon(sess)))
-    #print(write_comment(board_id, "376", "<img src='http://dcimg5.dcinside.com/dccon.php?no=62b5df2be09d3ca567b1c5bc12d46b394aa3b1058c6e4d0ca41648b65fe8206ea7f3b92660bc5d5215423e4ed144a30f6db46e312096e3e93e8603794b756245d3bd55f11fce86'>", dccon_id="153097480"))
+    #write_comment(board_id, "381", contents="123", dccon_id="", dccon_src="", parent_comment_id="", name="123", pw="1234", sess=DEFAULT_SESS)
     #for i in board(board_id, num=3, skip_contents=True):
     #    print(write_comment(board_id, i["id"], "아님", name="점진적자살", pw="1234"))
-
