@@ -3,7 +3,7 @@ Deadly simple non official dcinside api for python3
 ```python
 # 프로그래밍 갤러리 글 헤더 무한 크롤링(빠름)
 for doc in dc_api.board(board_id="programming", skip_contents=True):
-    print(doc["id"], doc["title"], doc["name"], doc["date"]) 
+    print(doc["id"], doc["title"], doc["author"], doc["date"]) 
 # => "131293"
 # => "땔감 벗어나는법.tip ㅇㅇ(10.42) 1:41"
 # => "왜 이거 안돼냐? ㅇㅇ(192.231) 1:40"
@@ -15,7 +15,7 @@ for doc in dc_api.board(board_id="programming"):
     print(doc["contents"])  # => "ㅗㅜㅑ\n미친다.."
     print(doc["images"])    # => "[imgsrc1, imgsrc2, ...]"
     for com in doc["comments"]:
-        print(com["name"], com["contents"], com["date"])
+        print(com["author"], com["contents"], com["date"])
         # => "ㅇㅇ(10.42) 나 남잔데 이런거 별로 10:20"
 ```
 ```python

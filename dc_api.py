@@ -96,14 +96,14 @@ def document(board_id, doc_id, sess=DEFAULT_SESS):
         return '\n'.join(i.strip() for i in doc_content.itertext() if i.strip() and not i.strip().startswith("이미지 광고")), [i.get("src") for i in doc_content.xpath("//img") if not i.get("src","").startswith("https://nstatic")], comments(board_id, doc_id, sess=sess)
     '''
 
-def comments(board_id, doc_id, sess=DEFAULT_SESS, start_page=1):
+def comments(board_id, doc_id, sess=DEFAULT_SESS, num=-1, start_page=1):
     url = "http://m.dcinside.com/ajax/response-comment"
     for page in range(start_page, 999999):
         payload = {"id": board_id, "no": doc_id, "cpage": page, "managerskill":"", "del_scope": "1", "csort": ""}
         res = sess.post(url, headers=XML_HTTP_REQ_HEADERS, data=payload, timeout=TIMEOUT)
         parsed = lxml.html.fromstring(res.text)
         if not len(parsed[1].xpath("li")): break
-        for li in parsed[1].xpath("li"):
+        for li in reversed(parsed[1].xpath("li")):
             if not len(li[0]): continue
             yield({
                 "id": li.get("no"),
@@ -114,6 +114,9 @@ def comments(board_id, doc_id, sess=DEFAULT_SESS, start_page=1):
                 "dccon": li[1][0].get("src", None) if len(li[1]) and li[1][0].tag=="img" else None,
                 "voice": li[1][0].get("src", None) if len(li[1]) and li[1][0].tag=="iframe" else None,
                 "time": li[2].text, })
+            num -= 1
+            if num <= 0:
+                return
         page_num_els = parsed.xpath("span[@class='pgnum']")
         if page_num_els:
             p = page_num_els[0].itertext()
@@ -184,17 +187,108 @@ def write_comment(board_id, doc_id, contents="", dccon_id="", dccon_src="", pare
     if dccon_src: payload["comment_memo"] = "<img src='{}'>".format(dccon_src)
     parsed = json.loads(sess.post(url, headers=header, data=payload, timeout=TIMEOUT).text)
     if "data" not in parsed: 
-        raise Exception(str(parsed))
+        raise Exception("Error while writing comment: " + str(parsed))
     return str(parsed["data"])
 
-def write_document(board_id, title="", contents="", name="", pw="", sess=DEFAULT_SESS):
-    url = "http://m.dcinside.com/write/{}".format(board_id)
+def remove_document(board_id, doc_id, pw="", sess=DEFAULT_SESS):
+    if not pw:
+        url = "http://m.dcinside.com/board/{}/{}".format(board_id, doc_id)
+        res = sess.get(url, timeout=TIMEOUT)
+        parsed = lxml.html.fromstring(res.text)
+        csrf_token = parsed.xpath("//meta[@name='csrf-token']")[0].get("content")
+        header = XML_HTTP_REQ_HEADERS.copy()
+        header["Referer"] = url
+        header["Host"] = "m.dcinside.com"
+        header["Origin"] = "http://m.dcinside.com"
+        header["X-CSRF-TOKEN"] = csrf_token
+        con_key = __access("board_Del", url, require_conkey=False, sess=sess)
+        url = "http://m.dcinside.com/del/board"
+        payload = { "id": board_id, "no": doc_id, "con_key": con_key }
+        res = sess.post(url, headers=header, data=payload, timeout=TIMEOUT)
+        if res.text.find("true") < 0:
+            raise Exception("Error while removing: " + res.text)
+        return True
+    url = "http://m.dcinside.com/confirmpw/{}/{}?mode=del".format(board_id, doc_id)
+    referer = url
     res = sess.get(url, timeout=TIMEOUT)
     parsed = lxml.html.fromstring(res.text)
+    token = parsed.xpath("//input[@name='_token']")[0].get("value", "")
+    csrf_token = parsed.xpath("//meta[@name='csrf-token']")[0].get("content")
+    con_key = __access("board_Del", url, require_conkey=False, sess=sess)
+    payload = {
+            "_token": token,
+            "board_pw": pw,
+            "id": board_id,
+            "no": doc_id,
+            "mode": "del",
+            "con_key": con_key,
+            }
+    header = XML_HTTP_REQ_HEADERS.copy()
+    header["Referer"] = url
+    header["Host"] = "m.dcinside.com"
+    header["Origin"] = "http://m.dcinside.com"
+    header["X-CSRF-TOKEN"] = csrf_token
+    url = "http://m.dcinside.com/del/board"
+    res = sess.post(url, headers=header, data=payload, timeout=TIMEOUT)
+    if res.text.find("true") < 0:
+        raise Exception("Error while removing: " + res.text)
+    return True
+
+def modify_document(board_id, doc_id, title="", contents="", name="", pw="", sess=DEFAULT_SESS):
+    if not pw:
+        url = "http://m.dcinside.com/write/{}/modify/{}".format(board_id, doc_id)
+        res = sess.get(url)
+        return __write_or_modify_document(board_id, title, contents, name, pw, sess, intermediate=res.text, intermediate_referer=url, doc_id=doc_id)
+    url = "http://m.dcinside.com/confirmpw/{}/{}?mode=modify".format(board_id, doc_id)
+    referer = url
+    res = sess.get(url, timeout=TIMEOUT)
+    parsed = lxml.html.fromstring(res.text)
+    token = parsed.xpath("//input[@name='_token']")[0].get("value", "")
+    csrf_token = parsed.xpath("//meta[@name='csrf-token']")[0].get("content")
+    con_key = __access("Modifypw", url, require_conkey=False, sess=sess)
+    payload = {
+            "_token": token,
+            "board_pw": pw,
+            "id": board_id,
+            "no": doc_id,
+            "mode": "modify",
+            "con_key": con_key,
+            }
+    header = XML_HTTP_REQ_HEADERS.copy()
+    header["Referer"] = referer
+    header["Host"] = "m.dcinside.com"
+    header["Origin"] = "http://m.dcinside.com"
+    header["X-CSRF-TOKEN"] = csrf_token
+    url = "http://m.dcinside.com/ajax/pwcheck-board"
+    res = sess.post(url, headers=header, data=payload, timeout=TIMEOUT)
+    if not res.text.strip():
+        Exception("Error while modifing: maybe the password is incorrect")
+    payload = {
+            "board_pw": pw,
+            "id": board_id,
+            "no": doc_id,
+            "_token": csrf_token
+            }
+    header = POST_HEADERS.copy()
+    header["Referer"] = referer
+    url = "http://m.dcinside.com/write/{}/modify/{}".format(board_id, doc_id)
+    res = sess.post(url, headers=header, data=payload, timeout=TIMEOUT)
+    return __write_or_modify_document(board_id, title, contents, name, pw, sess, intermediate=res.text, intermediate_referer=url, doc_id=doc_id)
+
+def write_document(board_id, title="", contents="", name="", pw="", sess=DEFAULT_SESS):
+    return __write_or_modify_document(board_id, title, contents, name, pw, sess)
+
+def __write_or_modify_document(board_id, title="", contents="", name="", pw="", sess=DEFAULT_SESS, intermediate=None, intermediate_referer=None, doc_id=None):
+    if not intermediate:
+        url = "http://m.dcinside.com/write/{}".format(board_id)
+        res = sess.get(url, timeout=TIMEOUT)
+        parsed = lxml.html.fromstring(res.text)
+    else:
+        parsed = lxml.html.fromstring(intermediate)
+        url = intermediate_referer
     rand_code = parsed.xpath("//input[@name='code']")
     rand_code = rand_code[0].get("value") if len(rand_code) else None
     user_id = parsed.xpath("//input[@name='user_id']")[0].get("value") if not name else None
-    gall_id = parsed.xpath("//input[@id='gall_id']")[0].get("value")
     mobile_key = parsed.xpath("//input[@id='mobile_key']")[0].get("value")
     hide_robot = parsed.xpath("//input[@class='hide-robot']")[0].get("name")
     csrf_token = parsed.xpath("//meta[@name='csrf-token']")[0].get("content")
@@ -208,20 +302,20 @@ def write_document(board_id, title="", contents="", name="", pw="", sess=DEFAULT
     payload = {
             "subject": title,
             "memo": contents,
-            "id": gall_id,
+            "id": board_id,
             }
     if rand_code:
         payload["code"] = rand_code
     res = json.loads(sess.post(url, headers=header, data=payload, timeout=TIMEOUT).text)
     if not res["result"]:
-        raise Exception(str(res))
+        raise Exception("Erorr while write document: " + str(res))
     url = "http://upload.dcinside.com/write_new.php"
     header["Host"] = "upload.dcinside.com"
     payload = {
             "subject": title,
             "memo": contents,
             hide_robot: "1",
-            "id": gall_id,
+            "id": board_id,
             "contentOrder": "order_memo",
             "mode": "write",
             "Block_key": con_key,
@@ -238,8 +332,17 @@ def write_document(board_id, title="", contents="", name="", pw="", sess=DEFAULT
         payload["password"] = pw
     else:
         payload["user_id"] = user_id
+    if intermediate:
+        payload["mode"] = "modify"
+        payload["delcheck"] = ""
+        payload["t_ch2"] = ""
+        payload["no"] = doc_id
     res = sess.post(url, headers=header, data=payload, timeout=TIMEOUT).text
-    return res[res.rfind("/")+1:-2]
+    doc_id = res[res.rfind("/")+1:-2]
+    if doc_id.isdigit():
+        return doc_id
+    else:
+        return res
 
 def __access(token_verify, target_url, require_conkey=True, sess=DEFAULT_SESS):
     if require_conkey:
@@ -261,9 +364,10 @@ if __name__ == "__main__":
         print(write_comment(board_id, i["id"], "맞음", name="점진적자살", pw="1234"))
     '''
     login("bot123", "1q2w3e4r!")
-    print(write_document(board_id, "1234", "12345"))
+    print(remove_document(board_id, "386"))
+    #print(write_document(board_id, "1234", "12345"))
     #sess = login(id, pw)
     #print(len(all_user_dccon(sess)))
     #write_comment(board_id, "381", contents="123", dccon_id="", dccon_src="", parent_comment_id="", name="123", pw="1234", sess=DEFAULT_SESS)
     #for i in board(board_id, num=3, skip_contents=True):
-    #    print(write_comment(board_id, i["id"], "아님", name="점진적자살", pw="1234"))
+    #doc_id    print(write_comment(board_id, i["id"], "아님", name="점진적자살", pw="1234"))
