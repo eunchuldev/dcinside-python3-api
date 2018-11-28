@@ -108,7 +108,7 @@ def comments(board_id, doc_id, sess=DEFAULT_SESS, num=-1, start_page=1):
             yield({
                 "id": li.get("no"),
                 "parent_id": li.get("m_no"),
-                "author": li[0].text + ("({})".format(li[0][0].text) if li[0][0].text else ""),
+                "author": li[0].text + ("{}".format(li[0][0].text) if li[0][0].text else ""),
                 "author_id": li[0][1].text if len(li[0]) > 1 else None,
                 "contents": '\n'.join(i.strip() for i in li[1].itertext()),
                 "dccon": li[1][0].get("src", None) if len(li[1]) and li[1][0].tag=="img" else None,
@@ -186,7 +186,7 @@ def write_comment(board_id, doc_id, contents="", dccon_id="", dccon_src="", pare
     if dccon_id: payload["detail_idx"] = dccon_id
     if dccon_src: payload["comment_memo"] = "<img src='{}'>".format(dccon_src)
     parsed = json.loads(sess.post(url, headers=header, data=payload, timeout=TIMEOUT).text)
-    if "data" not in parsed: 
+    if "data" not in parsed:
         raise Exception("Error while writing comment: " + str(parsed))
     return str(parsed["data"])
 
@@ -342,7 +342,7 @@ def __write_or_modify_document(board_id, title="", contents="", name="", pw="", 
     if doc_id.isdigit():
         return doc_id
     else:
-        return res
+        raise Exception(str(res))
 
 def __access(token_verify, target_url, require_conkey=True, sess=DEFAULT_SESS):
     if require_conkey:
@@ -364,8 +364,8 @@ if __name__ == "__main__":
         print(write_comment(board_id, i["id"], "맞음", name="점진적자살", pw="1234"))
     '''
     login("bot123", "1q2w3e4r!")
-    print(remove_document(board_id, "386"))
-    #print(write_document(board_id, "1234", "12345"))
+    #print(remove_document(board_id, "386"))
+    print(write_document(board_id, "1234", "12345"))
     #sess = login(id, pw)
     #print(len(all_user_dccon(sess)))
     #write_comment(board_id, "381", contents="123", dccon_id="", dccon_src="", parent_comment_id="", name="123", pw="1234", sess=DEFAULT_SESS)
