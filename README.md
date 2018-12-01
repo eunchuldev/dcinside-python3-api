@@ -32,6 +32,13 @@ python3 requests, lxml
 
 # Usage
 Place dc_api.py in your working directory
+
+or install through pip
+
+```
+pip3 install --user dc_api
+```
+
 ```python
 import dc_api
 
