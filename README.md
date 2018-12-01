@@ -84,7 +84,7 @@ doc_id = dc_api.modify_document(board_id="programming", doc_id=doc_id,
                           title="수정된 제목", contents="수정된 내용")
 
 # delete doc
-dc_api.remove_document(board_id="programming", doc_id=doc_id, password="1234")
+dc_api.remove_document(board_id="programming", doc_id=doc_id, pw="1234")
 
 # write comment
 com_id = write_comment(board_id="programming", doc_no=doc_no, 
@@ -93,7 +93,7 @@ com_id = write_comment(board_id="programming", doc_no=doc_no,
 '''(Under development)
 # delete comment
 dc_api.removeComment(board_id="programming", is_miner=False, doc_no=doc_no, 
-                     comment_no=comment_no, password="1234")
+                     comment_no=comment_no, pw="1234")
 
 # upvote
 dc_api.upvote(board_id="programming", is_miner=False, doc_no=doc_no)
