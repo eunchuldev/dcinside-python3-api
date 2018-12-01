@@ -68,27 +68,25 @@ print(contents, images, comments)
 # => "ㅗㅜㅑ\nㅗㅜㅑ.. [imgsrc1, imgsrc2, ..] <generator>"
 
 # write doc
-doc_no = dc_api.write_document(board_id="programming",
+doc_id = dc_api.write_document(board_id="programming",
                                name="점진적자살", pw="1234", 
                                title="제목", contents="내용")
-'''(Under developement)
 # modify doc
-doc_no = dc_api.modifyDoc(board_id="programming", is_miner=False, doc_no=doc_no, 
-                          name="얄파고", password="1234", 
+doc_id = dc_api.modify_document(board_id="programming", doc_id=doc_id, 
+                          name="얄파고", pw="1234", 
                           title="수정된 제목", contents="수정된 내용")
-'''
+
+# delete doc
+dc_api.remove_document(board_id="programming", doc_id=doc_id, password="1234")
 
 # write comment
-comment_no = write_comment(board_id="programming", doc_no=doc_no, 
+com_id = write_comment(board_id="programming", doc_no=doc_no, 
                            name="점진적자살", pw="1234", contents="아님")
                           
 '''(Under development)
 # delete comment
 dc_api.removeComment(board_id="programming", is_miner=False, doc_no=doc_no, 
                      comment_no=comment_no, password="1234")
-
-# delete doc
-dc_api.removeDoc(board_id="programming", is_miner=False, doc_no=doc_no, password="1234")
 
 # upvote
 dc_api.upvote(board_id="programming", is_miner=False, doc_no=doc_no)
@@ -99,23 +97,22 @@ dc_api.upvote(board_id="programming", is_miner=False, doc_no=doc_no, num=10)
 
 # login
 # if you skip the sess parameter, it will use the default session(and it affects all other API calls that use default session)
-dc_api.login(id="", pw="", sess=dc_api.gen_session())
+sess = dc_api.get_session()
+dc_api.login(id="", pw="", sess=sess)
 
 # write doc with logined session
 # if you have skiped sess parameter of login API, you should also skip following API's sess parameters
-doc_no = dc_api.writeDoc(sess=sess, board_id="programming", is_miner=False,                          
+doc_id = dc_api.write_document(sess=sess, board_id="programming", 
                          title="제목", contents="내용")
                          
-'''(Under development)
 # modify doc with logined session
-doc_no = dc_api.modifyDoc(sess=sess, board_id="programming", is_miner=False, 
+doc_id = dc_api.modify_document(sess=sess, board_id="programming", doc_id=doc_id,
                           title="수정된 제목", contents="수정된 내용")
-'''
 
 # write comment with logined session
 # if you have skiped sess parameter of login API, you should also skip following API's sess parameters
 # write comment
-comment_no = write_comment(sess=sess, board_id="programming", doc_no=doc_no, 
+com_id = write_comment(sess=sess, board_id="programming", doc_id=doc_id, 
                            name="점진적자살", pw="1234", contents="아님")
                           
 '''(Under development)

@@ -315,6 +315,7 @@ def __write_or_modify_document(board_id, title="", contents="", name="", pw="", 
             "subject": title,
             "memo": contents,
             hide_robot: "1",
+            "GEY3JWF": hide_robot,
             "id": board_id,
             "contentOrder": "order_memo",
             "mode": "write",
@@ -357,17 +358,17 @@ def __access(token_verify, target_url, require_conkey=True, sess=DEFAULT_SESS):
     return json.loads(res.text)["Block_key"]
 
 if __name__ == "__main__":
-    board_id = "alphago"
+    board_id = "programming"
     '''
     for i in board(board_id, num=1, skip_contents=False):
         print(write_comment(board_id, i["id"], "아님", name="점진적자살", pw="1234"))
         print(write_comment(board_id, i["id"], "맞음", name="점진적자살", pw="1234"))
     '''
-    login("bot123", "1q2w3e4r!")
+    #login("bot123", "1q2w3e4r!")
     #print(remove_document(board_id, "386"))
-    print(write_document(board_id, "1234", "12345"))
+    print(write_document(board_id, "1234", "12345", name="123", pw="12345"))
     #sess = login(id, pw)
     #print(len(all_user_dccon(sess)))
-    #write_comment(board_id, "381", contents="123", dccon_id="", dccon_src="", parent_comment_id="", name="123", pw="1234", sess=DEFAULT_SESS)
+    #write_comment(board_id, "939720", contents="123", dccon_id="", dccon_src="", parent_comment_id="", name="123", pw="1234")
     #for i in board(board_id, num=3, skip_contents=True):
     #doc_id    print(write_comment(board_id, i["id"], "아님", name="점진적자살", pw="1234"))
