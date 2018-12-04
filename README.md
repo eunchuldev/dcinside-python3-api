@@ -23,7 +23,7 @@ for doc in dc_api.board(board_id="programming"):
 dc_api.write_comment(board_id="programming", doc_id="149123", name="ㅇㅇ", pw="1234", contents="ㅇㅈ")
 # 로그인 후 글쓰기
 dc_api.login(id="SAMPLE_ID", pw="SAMPLE_PW")
-dc_api.write_doc(board_id="programming", title="흠..좋네", contents="기부니가 좋네")
+dc_api.write_document(board_id="programming", title="흠..좋네", contents="기부니가 좋네")
 dc_api.write_comment(board_id="programming", doc_id="149123", contents="설리")
 ```
 
