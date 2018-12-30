@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="dc_api",
-    version="0.3.3",
+    version="0.3.4",
     author="Eunchul, Song",
     author_email="eunchulsong9@gmail.com",
     description="Deadly dimple unofficial dcinside api",
