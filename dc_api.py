@@ -184,7 +184,7 @@ def write_comment(board_id, doc_id, contents="", dccon_id="", dccon_src="", pare
             hide_robot: "1",
             }
     if dccon_id: payload["detail_idx"] = dccon_id
-    if dccon_src: payload["comment_memo"] = "<img src='{}' class='written_dccon'>".format(dccon_src)
+    if dccon_src: payload["comment_memo"] = "<img src='{}' class='written_dccon' alt='1'>".format(dccon_src)
     parsed = json.loads(sess.post(url, headers=header, data=payload, timeout=TIMEOUT).text)
     if "data" not in parsed:
         raise Exception("Error while writing comment: " + str(parsed))

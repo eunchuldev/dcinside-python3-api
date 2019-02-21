@@ -104,7 +104,7 @@ dc_api.upvote(board_id="programming", is_miner=False, doc_no=doc_no, num=10)
 
 # login
 # if you skip the sess parameter, it will use the default session(and it affects all other API calls that use default session)
-sess = dc_api.get_session()
+sess = dc_api.gen_session()
 dc_api.login(id="", pw="", sess=sess)
 
 # write doc with logined session
