@@ -38,16 +38,16 @@ POST_HEADERS = {
 TIMEOUT = 3
 def gen_session():
     sess = requests.Session()
-    sess.mount("http://", HTTPAdapter(max_retries=100))
+    sess.mount("https://", HTTPAdapter(max_retries=100))
     sess.headers.update(GET_HEADERS)
-    sess.head("http://m.dcinside.com")
+    sess.head("https://m.dcinside.com")
     return sess
 DEFAULT_SESS = gen_session()
 
 def board(board_id, num=-1, start_page=1, skip_contents=False, doc_id_upper_limit=None, sess=DEFAULT_SESS):
     page = start_page
     while num:
-        url = "http://m.dcinside.com/board/{}?page={}".format(board_id, page)
+        url = "https://m.dcinside.com/board/{}?page={}".format(board_id, page)
         res = sess.get(url, timeout=TIMEOUT)
         parsed = lxml.html.fromstring(res.text)
         doc_headers = (i[0] for i in parsed.xpath("//ul[@class='gall-detail-lst']/li") if not i.get("class", "").startswith("ad"))
@@ -74,7 +74,7 @@ def board(board_id, num=-1, start_page=1, skip_contents=False, doc_id_upper_limi
         else: page+=1
 
 def document(board_id, doc_id, sess=DEFAULT_SESS):
-    url = "http://m.dcinside.com/board/{}/{}".format(board_id, doc_id)
+    url = "https://m.dcinside.com/board/{}/{}".format(board_id, doc_id)
     res = sess.get(url, timeout=TIMEOUT)
     parsed = lxml.html.fromstring(res.text)
     doc_content_container = parsed.xpath("//div[@class='thum-txtin']")
@@ -89,7 +89,7 @@ def document(board_id, doc_id, sess=DEFAULT_SESS):
         return "", [], []
     ''' !TODO: use an alternative(PC) protocol to fetch document
     else:
-        url = "http://gall.dcinside.com/{}?no={}".format(board_id, doc_id)
+        url = "https://gall.dcinside.com/{}?no={}".format(board_id, doc_id)
         res = sess.get(url, timeout=TIMEOUT, headers=ALTERNATIVE_GET_HEADERS)
         parsed = lxml.html.fromstring(res.text)
         doc_content = parsed.xpath("//div[@class='thum-txtin']")[0]
@@ -97,7 +97,7 @@ def document(board_id, doc_id, sess=DEFAULT_SESS):
     '''
 
 def comments(board_id, doc_id, sess=DEFAULT_SESS, num=-1, start_page=1):
-    url = "http://m.dcinside.com/ajax/response-comment"
+    url = "https://m.dcinside.com/ajax/response-comment"
     for page in range(start_page, 999999):
         payload = {"id": board_id, "no": doc_id, "cpage": page, "managerskill":"", "del_scope": "1", "csort": ""}
         res = sess.post(url, headers=XML_HTTP_REQ_HEADERS, data=payload, timeout=TIMEOUT)
@@ -125,13 +125,13 @@ def comments(board_id, doc_id, sess=DEFAULT_SESS, num=-1, start_page=1):
         else: break
 
 def all_user_dccon(sess=DEFAULT_SESS):
-    url = "http://m.dcinside.com/dccon/getDccon"
+    url = "https://m.dcinside.com/dccon/getDccon"
     res = sess.post(url, headers=XML_HTTP_REQ_HEADERS, timeout=TIMEOUT)
     parsed = lxml.html.fromstring(res.text)
     dccon_package_len = len(parsed.xpath("//ul[@class='dccon-top-slide swiper-wrapper']")[0])-1
     dccons = []
     for i in range(dccon_package_len):
-        url = "http://m.dcinside.com/dccon/getDccon_tab"
+        url = "https://m.dcinside.com/dccon/getDccon_tab"
         payload = {"idx": str(i+1)}
         res = sess.post(url, headers=XML_HTTP_REQ_HEADERS, data=payload, timeout=TIMEOUT)
         parsed = lxml.html.fromstring(res.text)
@@ -139,23 +139,23 @@ def all_user_dccon(sess=DEFAULT_SESS):
     return dccons
 
 def login(id, pw, sess=DEFAULT_SESS):
-    con_key = __access("dc_login", "http://m.dcinside.com/auth/login?r_url=http://m.dcinside.com/")
+    con_key = __access("dc_login", "https://m.dcinside.com/auth/login?r_url=https://m.dcinside.com/")
     url = "https://dcid.dcinside.com/join/mobile_login_ok_new.php"
     header = POST_HEADERS
-    header["Referer"] = "http://m.dcinside.com/"
+    header["Referer"] = "https://m.dcinside.com/"
     header["Host"] = "dcid.dcinside.com"
-    header["Origin"] = "http://m.dcinside.com"
+    header["Origin"] = "https://m.dcinside.com"
     payload = {
             "user_id": id,
             "user_pw": pw,
             "id_chk": "on",
             "con_key": con_key,
-            "r_url": "http://m.dcinside.com/" }
+            "r_url": "https://m.dcinside.com/" }
     res = sess.post(url, headers=header, data=payload, timeout=TIMEOUT)
     return sess
 
 def write_comment(board_id, doc_id, contents="", dccon_id="", dccon_src="", parent_comment_id="", name="", pw="", sess=DEFAULT_SESS):
-    url = "http://m.dcinside.com/board/{}/{}".format(board_id, doc_id)
+    url = "https://m.dcinside.com/board/{}/{}".format(board_id, doc_id)
     res = sess.get(url, timeout=TIMEOUT)
     parsed = lxml.html.fromstring(res.text)
     hide_robot = parsed.xpath("//input[@class='hide-robot']")[0].get("name")
@@ -164,9 +164,9 @@ def write_comment(board_id, doc_id, contents="", dccon_id="", dccon_src="", pare
     header = XML_HTTP_REQ_HEADERS.copy()
     header["Referer"] = url
     header["Host"] = "m.dcinside.com"
-    header["Origin"] = "http://m.dcinside.com"
+    header["Origin"] = "https://m.dcinside.com"
     header["X-CSRF-TOKEN"] = csrf_token
-    url = "http://m.dcinside.com/ajax/comment-write"
+    url = "https://m.dcinside.com/ajax/comment-write"
     payload = {
             "comment_memo": contents,
             "comment_nick": name,
@@ -192,23 +192,23 @@ def write_comment(board_id, doc_id, contents="", dccon_id="", dccon_src="", pare
 
 def remove_document(board_id, doc_id, pw="", sess=DEFAULT_SESS):
     if not pw:
-        url = "http://m.dcinside.com/board/{}/{}".format(board_id, doc_id)
+        url = "https://m.dcinside.com/board/{}/{}".format(board_id, doc_id)
         res = sess.get(url, timeout=TIMEOUT)
         parsed = lxml.html.fromstring(res.text)
         csrf_token = parsed.xpath("//meta[@name='csrf-token']")[0].get("content")
         header = XML_HTTP_REQ_HEADERS.copy()
         header["Referer"] = url
         header["Host"] = "m.dcinside.com"
-        header["Origin"] = "http://m.dcinside.com"
+        header["Origin"] = "https://m.dcinside.com"
         header["X-CSRF-TOKEN"] = csrf_token
         con_key = __access("board_Del", url, require_conkey=False, sess=sess)
-        url = "http://m.dcinside.com/del/board"
+        url = "https://m.dcinside.com/del/board"
         payload = { "id": board_id, "no": doc_id, "con_key": con_key }
         res = sess.post(url, headers=header, data=payload, timeout=TIMEOUT)
         if res.text.find("true") < 0:
             raise Exception("Error while removing: " + res.text)
         return True
-    url = "http://m.dcinside.com/confirmpw/{}/{}?mode=del".format(board_id, doc_id)
+    url = "https://m.dcinside.com/confirmpw/{}/{}?mode=del".format(board_id, doc_id)
     referer = url
     res = sess.get(url, timeout=TIMEOUT)
     parsed = lxml.html.fromstring(res.text)
@@ -226,9 +226,9 @@ def remove_document(board_id, doc_id, pw="", sess=DEFAULT_SESS):
     header = XML_HTTP_REQ_HEADERS.copy()
     header["Referer"] = url
     header["Host"] = "m.dcinside.com"
-    header["Origin"] = "http://m.dcinside.com"
+    header["Origin"] = "https://m.dcinside.com"
     header["X-CSRF-TOKEN"] = csrf_token
-    url = "http://m.dcinside.com/del/board"
+    url = "https://m.dcinside.com/del/board"
     res = sess.post(url, headers=header, data=payload, timeout=TIMEOUT)
     if res.text.find("true") < 0:
         raise Exception("Error while removing: " + res.text)
@@ -236,10 +236,10 @@ def remove_document(board_id, doc_id, pw="", sess=DEFAULT_SESS):
 
 def modify_document(board_id, doc_id, title="", contents="", name="", pw="", sess=DEFAULT_SESS):
     if not pw:
-        url = "http://m.dcinside.com/write/{}/modify/{}".format(board_id, doc_id)
+        url = "https://m.dcinside.com/write/{}/modify/{}".format(board_id, doc_id)
         res = sess.get(url)
         return __write_or_modify_document(board_id, title, contents, name, pw, sess, intermediate=res.text, intermediate_referer=url, doc_id=doc_id)
-    url = "http://m.dcinside.com/confirmpw/{}/{}?mode=modify".format(board_id, doc_id)
+    url = "https://m.dcinside.com/confirmpw/{}/{}?mode=modify".format(board_id, doc_id)
     referer = url
     res = sess.get(url, timeout=TIMEOUT)
     parsed = lxml.html.fromstring(res.text)
@@ -257,9 +257,9 @@ def modify_document(board_id, doc_id, title="", contents="", name="", pw="", ses
     header = XML_HTTP_REQ_HEADERS.copy()
     header["Referer"] = referer
     header["Host"] = "m.dcinside.com"
-    header["Origin"] = "http://m.dcinside.com"
+    header["Origin"] = "https://m.dcinside.com"
     header["X-CSRF-TOKEN"] = csrf_token
-    url = "http://m.dcinside.com/ajax/pwcheck-board"
+    url = "https://m.dcinside.com/ajax/pwcheck-board"
     res = sess.post(url, headers=header, data=payload, timeout=TIMEOUT)
     if not res.text.strip():
         Exception("Error while modifing: maybe the password is incorrect")
@@ -271,7 +271,7 @@ def modify_document(board_id, doc_id, title="", contents="", name="", pw="", ses
             }
     header = POST_HEADERS.copy()
     header["Referer"] = referer
-    url = "http://m.dcinside.com/write/{}/modify/{}".format(board_id, doc_id)
+    url = "https://m.dcinside.com/write/{}/modify/{}".format(board_id, doc_id)
     res = sess.post(url, headers=header, data=payload, timeout=TIMEOUT)
     return __write_or_modify_document(board_id, title, contents, name, pw, sess, intermediate=res.text, intermediate_referer=url, doc_id=doc_id)
 
@@ -280,7 +280,7 @@ def write_document(board_id, title="", contents="", name="", pw="", sess=DEFAULT
 
 def __write_or_modify_document(board_id, title="", contents="", name="", pw="", sess=DEFAULT_SESS, intermediate=None, intermediate_referer=None, doc_id=None):
     if not intermediate:
-        url = "http://m.dcinside.com/write/{}".format(board_id)
+        url = "https://m.dcinside.com/write/{}".format(board_id)
         res = sess.get(url, timeout=TIMEOUT)
         parsed = lxml.html.fromstring(res.text)
     else:
@@ -296,9 +296,9 @@ def __write_or_modify_document(board_id, title="", contents="", name="", pw="", 
     header = XML_HTTP_REQ_HEADERS.copy()
     header["Referer"] = url
     header["Host"] = "m.dcinside.com"
-    header["Origin"] = "http://m.dcinside.com"
+    header["Origin"] = "https://m.dcinside.com"
     header["X-CSRF-TOKEN"] = csrf_token
-    url = "http://m.dcinside.com/ajax/w_filter"
+    url = "https://m.dcinside.com/ajax/w_filter"
     payload = {
             "subject": title,
             "memo": contents,
@@ -309,7 +309,7 @@ def __write_or_modify_document(board_id, title="", contents="", name="", pw="", 
     res = json.loads(sess.post(url, headers=header, data=payload, timeout=TIMEOUT).text)
     if not res["result"]:
         raise Exception("Erorr while write document: " + str(res))
-    url = "http://upload.dcinside.com/write_new.php"
+    url = "https://upload.dcinside.com/write_new.php"
     header["Host"] = "upload.dcinside.com"
     payload = {
             "subject": title,
@@ -353,7 +353,7 @@ def __access(token_verify, target_url, require_conkey=True, sess=DEFAULT_SESS):
         payload = { "token_verify": token_verify, "con_key": con_key }
     else:
         payload = { "token_verify": token_verify, }
-    url = "http://m.dcinside.com/ajax/access"
+    url = "https://m.dcinside.com/ajax/access"
     res = sess.post(url, headers=XML_HTTP_REQ_HEADERS, data=payload, timeout=TIMEOUT)
     return json.loads(res.text)["Block_key"]
 
