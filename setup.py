@@ -1,11 +1,14 @@
 import setuptools
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
+try:
+    with open('README.md') as fh:
+        long_description = fh.read()
+except IOError as e:
+    long_description = ""
 
 setuptools.setup(
     name="dc_api",
-    version="0.3.4",
+    version="0.4.6",
     author="Eunchul, Song",
     author_email="eunchulsong9@gmail.com",
     description="Deadly dimple unofficial dcinside api",
@@ -16,7 +19,7 @@ setuptools.setup(
     py_modules=['dc_api'],
     install_requires=[
         'lxml',
-        'libsass',
+        'requests',
     ],
     entry_points     = """
            [console_scripts]

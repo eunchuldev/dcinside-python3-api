@@ -44,7 +44,7 @@ def gen_session():
     return sess
 DEFAULT_SESS = gen_session()
 
-def board(board_id, num=-1, start_page=1, skip_contents=False, doc_id_upper_limit=None, sess=DEFAULT_SESS):
+def board(board_id, num=-1, start_page=1, skip_contents=False, doc_id_upper_limit=None, doc_id_lower_limit=None, sess=DEFAULT_SESS):
     page = start_page
     while num:
         url = "https://m.dcinside.com/board/{}?page={}".format(board_id, page)
@@ -54,12 +54,17 @@ def board(board_id, num=-1, start_page=1, skip_contents=False, doc_id_upper_limi
         for doc in doc_headers:
             doc_id = doc[0].get("href").split("/")[-1].split("?")[0]
             if doc_id_upper_limit and int(doc_id_upper_limit) <= int(doc_id): continue
-            contents, imgs, cmts = document(board_id, doc_id, sess=sess) if not skip_contents else (None, None, None)
+            if doc_id_lower_limit and int(doc_id_lower_limit) >= int(doc_id): return
+            title = doc[0][0][1].text
+            author = doc[0][1][0].text
+            static_nickname = "(" not in author
+            title, author, contents, imgs, cmts, html = document(board_id, doc_id, sess=sess) if not skip_contents else (None, None, None)
             yield({
                 "id": doc_id,
-                "title": doc[0][0][1].text,
+                "title": title,
                 "has_image": doc[0][0][0].get("class").endswith("img"),
-                "author": doc[0][1][0].text,
+                "author": author,
+                "static_nickname": static_nickname, 
                 "time": doc[0][1][1].text,
                 "view_num": int(doc[0][1][2].text.split()[-1]),
                 "voteup_num": int(doc[0][1][3].text.split()[-1]),
@@ -67,6 +72,7 @@ def board(board_id, num=-1, start_page=1, skip_contents=False, doc_id_upper_limi
                 "contents": contents,
                 "images": imgs,
                 "comments": cmts,
+                "html": html,
                 })
             num-=1
             if num==0: break
@@ -79,14 +85,19 @@ def document(board_id, doc_id, sess=DEFAULT_SESS):
     parsed = lxml.html.fromstring(res.text)
     doc_content_container = parsed.xpath("//div[@class='thum-txtin']")
     if len(doc_content_container):
+        title = parsed.xpath("//span[@class='tit']")[0].text.strip()
+        author = parsed.xpath("//ul[@class='ginfo2']")[0][0].text.strip()
         doc_content = parsed.xpath("//div[@class='thum-txtin']")[0]
         for adv in doc_content.xpath("div[@class='adv-groupin']"):
             adv.getparent().remove(adv)
-        return '\n'.join(i.strip() for i in doc_content.itertext() if i.strip() and not i.strip().startswith("이미지 광고")), [i.get("src") for i in doc_content.xpath("//img") if not i.get("src","").startswith("https://nstatic")], comments(board_id, doc_id, sess=sess)
+        for adv in doc_content.xpath("//img"):
+            if adv.get("src", "").startswith("https://nstatic"):
+                adv.getparent().remove(adv)
+        return title, author, '\n'.join(i.strip() for i in doc_content.itertext() if i.strip() and not i.strip().startswith("이미지 광고")), [i.get("src") for i in doc_content.xpath("//img") if not i.get("src","").startswith("https://nstatic")], comments(board_id, doc_id, sess=sess), lxml.html.tostring(doc_content, encoding=str)
     else:
         # fail due to unusual tags in mobile version
         # at now, just skip it
-        return "", [], []
+        return "", "", "", [], [], ""
     ''' !TODO: use an alternative(PC) protocol to fetch document
     else:
         url = "https://gall.dcinside.com/{}?no={}".format(board_id, doc_id)
@@ -103,7 +114,8 @@ def comments(board_id, doc_id, sess=DEFAULT_SESS, num=-1, start_page=1):
         res = sess.post(url, headers=XML_HTTP_REQ_HEADERS, data=payload, timeout=TIMEOUT)
         parsed = lxml.html.fromstring(res.text)
         if not len(parsed[1].xpath("li")): break
-        for li in reversed(parsed[1].xpath("li")):
+        #for li in reversed(parsed[1].xpath("li")):
+        for li in parsed[1].xpath("li"):
             if not len(li[0]): continue
             yield({
                 "id": li.get("no"),
@@ -115,7 +127,7 @@ def comments(board_id, doc_id, sess=DEFAULT_SESS, num=-1, start_page=1):
                 "voice": li[1][0].get("src", None) if len(li[1]) and li[1][0].tag=="iframe" else None,
                 "time": li[2].text, })
             num -= 1
-            if num <= 0:
+            if num == 0:
                 return
         page_num_els = parsed.xpath("span[@class='pgnum']")
         if page_num_els:
