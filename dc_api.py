@@ -58,22 +58,20 @@ def board(board_id, num=-1, start_page=1, skip_contents=False, doc_id_upper_limi
             title = doc[0][0][1].text
             author = doc[0][1][0].text
             static_nickname = "(" not in author
-            title, author, contents, imgs, cmts, html = document(board_id, doc_id, sess=sess) if not skip_contents else (None, None, None)
-            yield({
+            data = {
                 "id": doc_id,
                 "title": title,
                 "has_image": doc[0][0][0].get("class").endswith("img"),
                 "author": author,
-                "static_nickname": static_nickname, 
+                "static_nickname": static_nickname,
                 "time": doc[0][1][1].text,
                 "view_num": int(doc[0][1][2].text.split()[-1]),
                 "voteup_num": int(doc[0][1][3].text.split()[-1]),
                 "comment_num": int(doc[1][0].text),
-                "contents": contents,
-                "images": imgs,
-                "comments": cmts,
-                "html": html,
-                })
+                }
+            doc_data = document(board_id, doc_id, sess=sess) if not skip_contents else {}
+            data.update(doc_data)
+            yield(data)
             num-=1
             if num==0: break
         if not doc_headers: break
@@ -84,20 +82,30 @@ def document(board_id, doc_id, sess=DEFAULT_SESS):
     res = sess.get(url, timeout=TIMEOUT)
     parsed = lxml.html.fromstring(res.text)
     doc_content_container = parsed.xpath("//div[@class='thum-txtin']")
+    doc_head_container = parsed.xpath("//div[@class='gallview-tit-box']")[0]
     if len(doc_content_container):
-        title = parsed.xpath("//span[@class='tit']")[0].text.strip()
-        author = parsed.xpath("//ul[@class='ginfo2']")[0][0].text.strip()
+        title = doc_head_container[0].text.strip()
+        author = doc_head_container[1][0][0].text.strip()
+        time = doc_head_container[1][0][1].text.strip()
         doc_content = parsed.xpath("//div[@class='thum-txtin']")[0]
         for adv in doc_content.xpath("div[@class='adv-groupin']"):
             adv.getparent().remove(adv)
         for adv in doc_content.xpath("//img"):
             if adv.get("src", "").startswith("https://nstatic"):
                 adv.getparent().remove(adv)
-        return title, author, '\n'.join(i.strip() for i in doc_content.itertext() if i.strip() and not i.strip().startswith("이미지 광고")), [i.get("src") for i in doc_content.xpath("//img") if not i.get("src","").startswith("https://nstatic")], comments(board_id, doc_id, sess=sess), lxml.html.tostring(doc_content, encoding=str)
+        return {
+                "title": title,
+                "author": author,
+                "contents": '\n'.join(i.strip() for i in doc_content.itertext() if i.strip() and not i.strip().startswith("이미지 광고")),
+                "imgs": [i.get("src") for i in doc_content.xpath("//img") if not i.get("src","").startswith("https://nstatic")],
+                "comments": comments(board_id, doc_id, sess=sess),
+                "html": lxml.html.tostring(doc_content, encoding=str),
+                "time": time
+                }
     else:
         # fail due to unusual tags in mobile version
         # at now, just skip it
-        return "", "", "", [], [], ""
+        return {}
     ''' !TODO: use an alternative(PC) protocol to fetch document
     else:
         url = "https://gall.dcinside.com/{}?no={}".format(board_id, doc_id)
