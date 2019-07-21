@@ -2,6 +2,7 @@
 import time
 import requests
 import json
+import datetime
 from requests.adapters import HTTPAdapter
 import lxml.html
 #import logging
@@ -131,7 +132,7 @@ def comments(board_id, doc_id, sess=DEFAULT_SESS, num=-1, start_page=1):
                 "author": li[0].text + ("{}".format(li[0][0].text) if li[0][0].text else ""),
                 "author_id": li[0][1].text if len(li[0]) > 1 else None,
                 "contents": '\n'.join(i.strip() for i in li[1].itertext()),
-                "dccon": li[1][0].get("src", None) if len(li[1]) and li[1][0].tag=="img" else None,
+                "dccon": li[1][0].get("data-original", li[1][0].get("src", None)) if len(li[1]) and li[1][0].tag=="img" else None,
                 "voice": li[1][0].get("src", None) if len(li[1]) and li[1][0].tag=="iframe" else None,
                 "time": li[2].text, })
             num -= 1
