@@ -1,7 +1,7 @@
 import setuptools
 
 try:
-    with open('README.md') as fh:
+    with open('README.md', 'rt', encoding='UTF8') as fh:
         long_description = fh.read()
 except IOError as e:
     long_description = ""
