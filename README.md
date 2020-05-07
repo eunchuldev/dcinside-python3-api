@@ -4,11 +4,11 @@ Deadly simple non official dcinside api for python3
 ```python
 api = dc_api.API()
 async for metadoc in api.board(board_id="programming"):
-    print(doc_metadoc.title, metadoc.author)  # => 땔감 벗어나는법.tip ㅇㅇ(10.42)
+    print(metadoc.title)          # => 땔감 벗어나는법.tip
     doc = await metadoc.document
-    print(doc.contents)                       # => 자바를 한다
+    print(doc.contents)           # => 자바를 한다
     async for comm in metadoc.comments:
-        print(com.author, com.contents)       # => ㅇㅇ(1.224) 지랄 ㄴ
+        print(com.contents)       # => ㅇㅇ(1.224) 지랄 ㄴ
 ```
 
 ```python
