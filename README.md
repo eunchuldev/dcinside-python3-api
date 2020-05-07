@@ -1,5 +1,5 @@
 # dcinside-python3-api
-Deadly simple non official dcinside api for python3
+Deadly simple non official async dcinside api for python3
 
 ```python
 # 프로그래밍 갤러리 글 무한 크롤링
@@ -24,7 +24,7 @@ await dc_api.remove_document(board_id="programming", doc_id=doc_id, password="12
 ```
 
 # Dependency
-python3 aiohttp, lxml
+python(>3.6) aiohttp, lxml
 
 # Features
 - [x] Board crawling
