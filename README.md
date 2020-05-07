@@ -3,6 +3,7 @@ Deadly simple non official dcinside api for python3
 
 ```python
 api = dc_api.API()
+# 프로그래밍 갤러리 글 무한 크롤링
 async for metadoc in api.board(board_id="programming"):
     print(metadoc.title)          # => 땔감 벗어나는법.tip
     doc = await metadoc.document
@@ -12,10 +13,11 @@ async for metadoc in api.board(board_id="programming"):
 ```
 
 ```python
+# 댓글 작성
 await dc_api.write_comment(board_id="programming", doc_id=149123, name="ㅇㅇ", password="1234", contents="ㅇㅈ")
-
+# 글 작성
 doc_id = await dc_api.write_document(board_id="programming", title="java vs python", contents="닥치고 자바", name="ㅇㅇ", password="1234")
-
+# 글 
 await dc_api.remove_document(board_id="programming", doc_id=doc_id, password="1234")
 ```
 
