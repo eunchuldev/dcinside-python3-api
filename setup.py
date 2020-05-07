@@ -8,7 +8,7 @@ except IOError as e:
 
 setuptools.setup(
     name="dc_api",
-    version="0.4.6",
+    version="0.5.1",
     author="Eunchul, Song",
     author_email="eunchulsong9@gmail.com",
     description="Deadly dimple unofficial dcinside api",
@@ -19,7 +19,8 @@ setuptools.setup(
     py_modules=['dc_api'],
     install_requires=[
         'lxml',
-        'requests',
+        'aiohttp',
+        'tenacity',
     ],
     entry_points     = """
            [console_scripts]

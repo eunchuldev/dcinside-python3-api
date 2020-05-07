@@ -1,39 +1,42 @@
 # dcinside-python3-api
 Deadly simple non official dcinside api for python3
+
 ```python
-# 프로그래밍 갤러리 글 헤더 무한 크롤링(빠름)
-for doc in dc_api.board(board_id="programming", skip_contents=True):
-    print(doc["id"], doc["title"], doc["author"], doc["date"]) 
-# => "131293"
-# => "땔감 벗어나는법.tip ㅇㅇ(10.42) 1:41"
-# => "왜 이거 안돼냐? ㅇㅇ(192.231) 1:40"
-# => ...
+api = dc_api.API()
+async for metadoc in api.board(board_id="programming"):
+    print(doc_metadoc.title, metadoc.author)  # => 땔감 벗어나는법.tip ㅇㅇ(10.42)
+    doc = await metadoc.document
+    print(doc.contents)                       # => 자바를 한다
+    async for comm in metadoc.comments:
+        print(com.author, com.contents)       # => ㅇㅇ(1.224) 지랄 ㄴ
 ```
+
 ```python
-# 프로그래밍 갤러리 글내용, 이미지, 댓글 포함 무한 크롤링(느림)
-for doc in dc_api.board(board_id="programming"):
-    print(doc["contents"])  # => "ㅗㅜㅑ\n미친다.."
-    print(doc["images"])    # => "[imgsrc1, imgsrc2, ...]"
-    for com in doc["comments"]:
-        print(com["author"], com["contents"], com["date"])
-        # => "ㅇㅇ(10.42) 나 남잔데 이런거 별로 10:20"
-```
-```python
-# 댓글쓰기
-dc_api.write_comment(board_id="programming", doc_id="149123", name="ㅇㅇ", pw="1234", contents="ㅇㅈ")
-# 로그인 후 글쓰기
-dc_api.login(id="SAMPLE_ID", pw="SAMPLE_PW")
-dc_api.write_document(board_id="programming", title="흠..좋네", contents="기부니가 좋네")
-dc_api.write_comment(board_id="programming", doc_id="149123", contents="설리")
+await dc_api.write_comment(board_id="programming", doc_id=149123, name="ㅇㅇ", password="1234", contents="ㅇㅈ")
+
+doc_id = await dc_api.write_document(board_id="programming", title="java vs python", contents="닥치고 자바", name="ㅇㅇ", password="1234")
+
+await dc_api.remove_document(board_id="programming", doc_id=doc_id, password="1234")
 ```
 
 # Dependency
-python3 requests, lxml 
+python3 aiohttp, lxml
+
+# Features
+- [x] Board crawling
+- [x] Fetch document body
+- [x] Fetch comments 
+- [x] Fetch document images
+- [x] Write/Modify/Delete document
+- [x] Write comment
+- [ ] Delete comment
+- [ ] Login/Logout
+- [ ] Upvote/Downvote
 
 # Usage
 Place dc_api.py in your working directory
 
-or install through pip
+or install via pip
 
 ```
 pip3 install --user dc_api
@@ -42,96 +45,65 @@ pip3 install --user dc_api
 ```python
 import dc_api
 
-# full API
-# for doc in dc_api.board(board_id="programming", num=5, start_page=2, skip_contents=True):
+api = dc_api.API()
 
-# full attributes of document and comment
-for doc in dc_api.board(board_id="programming"):
-    print(doc["id"])         # => "835027"
-    print(doc["title"])      # => "땔감 벗어나는법.tip"
-    print(doc["author"])     # => "ㅇㅇ(10.20)"
-    print(doc["has_image"])  # => True
-    print(doc["time"])       # => "1:41"
-    print(doc["comment_num"])# => 3
-    print(doc["voteup_num"]) # => 0
-    print(doc["view_num"])   # => 14
-    # Belows are None if parameter skip_contents=True
-    print(doc["contents"])   # => "자바를 한다" 
-    print(doc["imgs"])       # => ["http://static.dcinside.com/1o2i3joie", ...]
-    print(doc["comments"])   # => generator
-    for com in doc["comments"]:
-        print(com["id"])        # => "123123"
-        print(com["parent_id"]) # => "123122"
-        print(com["time"])      # => "1:55"
-        print(com["author"])    # => "ㅇㅇ(192.23)"
-        print(com["contents"])  # => "개솔 ㄴㄴ"
-        if com["dccon"]: 
-            print(com["dccon"]) # => "http://dcimg5.dcinside.com/dccon.php?...."
+async for metadoc in api.board(board_id="programming", num=-1, start_page=1, doc_id_upper_limit=None, doc_id_lower_limit=None):
+    metadoc.id         # => 835027
+    metadoc.board_id   # => programming
+    metadoc.title      # => "땔감 벗어나는법.tip"
+    metadoc.author     # => "ㅇㅇ(10.20)"
+    metadoc.author_id  # => None (고닉일 경우 고닉 아이디 반환)
+    metadoc.time       # => datetime("2020-01-01 01:41:00.000000")
+    metadoc.comment_count # => 3
+    metadoc.voteup_count  # => 0
+    metadoc.view_count    # => 14
+
+    doc = await metadoc.document
+    doc.id         # => 835027
+    doc.board_id   # => "programming"
+    doc.title      # => "땔감 벗어나는법.tip"
+    doc.author     # => "ㅇㅇ(10.20)"
+    doc.author_id  # => None (고닉일 경우 고닉 아이디 반환)
+    doc.time       # => datetime("2020-01-01 01:41:00.000000")
+    doc.comment_count   # => 3
+    doc.voteup_count    # => 0
+    doc.logined_voteup_count  # => 0
+    doc.votedown_count  # => 0
+    doc.view_count # => 14.id
+    doc.contents   # => "자바를 한다"
+    doc.html       # => "<p> 자바를 한다 </p>" 
+
+    for image in doc.images:
+        image.src         # => "https://..."
+        image.document_id # => 835027
+        image.board_id    # => "programming"
+        await image.load()# => raw image binary
+
+    async for com in metadoc.comments:
+        com.id            # => 123123
+        com.parent_id     # => 123122
+        com.time          # => "1:55"
+        com.author        # => "ㅇㅇ(192.23)"
+        com.author_id     # => None (고닉일 경우 아이디 반환)
+        com.contents      # => "개솔 ㄴㄴ"
+        com.dccon         # => None (디시콘일경우 디시콘 주소 반환)
+        com.voice         # => None (보이스리플일경우 보이스리플 주소 반환)
 
         
-# print document contents, images, and comments
-contents, images, comments = dc_api.document(board_id="programming", doc_no="835027")
-print(contents, images, comments)
-# => "ㅗㅜㅑ\nㅗㅜㅑ.. [imgsrc1, imgsrc2, ..] <generator>"
+doc = await api.document(board_id="programming", document_id=835027)
 
-# write doc
-doc_id = dc_api.write_document(board_id="programming",
-                               name="점진적자살", pw="1234", 
+async for comm in api.comments(board_id="programming", document_id=835027):
+    comm
+
+
+doc_id = await api.write_document(board_id="programming",
+                               name="점진적자살", password="1234", 
                                title="제목", contents="내용")
-# modify doc
-doc_id = dc_api.modify_document(board_id="programming", doc_id=doc_id, 
+doc_id = await api.modify_document(board_id="programming", document_id=document_id, 
                           name="얄파고", pw="1234", 
                           title="수정된 제목", contents="수정된 내용")
-
-# delete doc
-dc_api.remove_document(board_id="programming", doc_id=doc_id, pw="1234")
-
-# write comment
-com_id = write_comment(board_id="programming", doc_no=doc_no, 
-                           name="점진적자살", pw="1234", contents="아님")
-                          
-'''(Under development)
-# delete comment
-dc_api.removeComment(board_id="programming", is_miner=False, doc_no=doc_no, 
-                     comment_no=comment_no, pw="1234")
-
-# upvote
-dc_api.upvote(board_id="programming", is_miner=False, doc_no=doc_no)
-
-# upvote many times(it needs openvpn)
-dc_api.upvote(board_id="programming", is_miner=False, doc_no=doc_no, num=10)
-'''
-
-# login
-# if you skip the sess parameter, it will use the default session(and it affects all other API calls that use default session)
-sess = dc_api.gen_session()
-dc_api.login(id="", pw="", sess=sess)
-
-# write doc with logined session
-# if you have skiped sess parameter of login API, you should also skip following API's sess parameters
-doc_id = dc_api.write_document(sess=sess, board_id="programming", 
-                         title="제목", contents="내용")
-                         
-# modify doc with logined session
-doc_id = dc_api.modify_document(sess=sess, board_id="programming", doc_id=doc_id,
-                          title="수정된 제목", contents="수정된 내용")
-
-# write comment with logined session
-# if you have skiped sess parameter of login API, you should also skip following API's sess parameters
-# write comment
-com_id = write_comment(sess=sess, board_id="programming", doc_id=doc_id, 
-                           name="점진적자살", pw="1234", contents="아님")
-                          
-'''(Under development)
-# delete comment with logined session
-dc_api.removeComment(sess=sess, board_id="programming", is_miner=False, 
-                     doc_no=doc_no, comment_no=comment_no)
-                     
-# upvote with logined session
-dc_api.upvote(board_id="programming", is_miner=False, doc_no=doc_no, sess=sess)
-
-# logout
-dc_api.logout(sess)
-'''
+com_id = await api.write_comment(board_id="programming", document_id=doc_id, 
+                           name="점진적자살", password="1234", contents="설리")
+await api.remove_document(board_id="programming", document_id=document_id, password="1234")
 
 ```
