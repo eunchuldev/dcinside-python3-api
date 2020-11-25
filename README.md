@@ -6,9 +6,9 @@ Deadly simple non official async dcinside api for python3
 api = dc_api.API()
 async for metadoc in api.board(board_id="programming"):
     print(metadoc.title)          # => 땔감 벗어나는법.tip
-    doc = await metadoc.document
+    doc = await metadoc.document()
     print(doc.contents)           # => 자바를 한다
-    async for comm in metadoc.comments:
+    async for comm in metadoc.comments():
         print(com.contents)       # => ㅇㅇ(1.224) 지랄 ㄴ
 ```
 
@@ -23,6 +23,9 @@ doc_id = await api.write_document(board_id="programming", title="java vs python"
 
 # 글 삭제
 await api.remove_document(board_id="programming", doc_id=doc_id, password="1234")
+
+# 마이너갤 글 작성
+doc_id = await api.write_document(board_id="aoegame", title="java vs python", contents="닥치고 자바", name="ㅇㅇ", password="1234", is_minor=True)
 ```
 
 # Dependency
@@ -58,13 +61,12 @@ async for metadoc in api.board(board_id="programming", num=-1, start_page=1, doc
     metadoc.board_id   # => programming
     metadoc.title      # => "땔감 벗어나는법.tip"
     metadoc.author     # => "ㅇㅇ(10.20)"
-    metadoc.author_id  # => None (고닉일 경우 고닉 아이디 반환)
     metadoc.time       # => datetime("2020-01-01 01:41:00.000000")
     metadoc.comment_count # => 3
     metadoc.voteup_count  # => 0
     metadoc.view_count    # => 14
 
-    doc = await metadoc.document
+    doc = await metadoc.document()
     doc.id         # => 835027
     doc.board_id   # => "programming"
     doc.title      # => "땔감 벗어나는법.tip"
@@ -85,7 +87,7 @@ async for metadoc in api.board(board_id="programming", num=-1, start_page=1, doc
         image.board_id    # => "programming"
         await image.load()# => raw image binary
 
-    async for com in metadoc.comments:
+    async for com in metadoc.comments():
         com.id            # => 123123
         com.parent_id     # => 123122
         com.time          # => "1:55"
@@ -104,10 +106,10 @@ async for comm in api.comments(board_id="programming", document_id=835027):
 
 doc_id = await api.write_document(board_id="programming",
                                name="점진적자살", password="1234", 
-                               title="제목", contents="내용")
+                               title="제목", contents="내용", is_minor=False)
 doc_id = await api.modify_document(board_id="programming", document_id=document_id, 
                           name="얄파고", pw="1234", 
-                          title="수정된 제목", contents="수정된 내용")
+                          title="수정된 제목", contents="수정된 내용", is_minor=False)
 com_id = await api.write_comment(board_id="programming", document_id=doc_id, 
                            name="점진적자살", password="1234", contents="설리")
 await api.remove_document(board_id="programming", document_id=document_id, password="1234")
