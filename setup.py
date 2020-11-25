@@ -8,7 +8,7 @@ except IOError as e:
 
 setuptools.setup(
     name="dc_api",
-    version="0.5.1",
+    version="0.6.0",
     author="Eunchul, Song",
     author_email="eunchulsong9@gmail.com",
     description="Deadly dimple unofficial dcinside api",

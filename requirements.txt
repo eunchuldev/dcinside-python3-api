@@ -1,0 +1,3 @@
+lxml
+aiohttp
+tenacity
