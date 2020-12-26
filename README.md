@@ -3,13 +3,18 @@ Deadly simple non official async dcinside api for python3
 
 ```python
 # 프로그래밍 갤러리 글 무한 크롤링
-api = dc_api.API()
-async for metadoc in api.board(board_id="programming"):
-    print(metadoc.title)          # => 땔감 벗어나는법.tip
-    doc = await metadoc.document()
-    print(doc.contents)           # => 자바를 한다
-    async for comm in metadoc.comments():
-        print(com.contents)       # => ㅇㅇ(1.224) 지랄 ㄴ
+def run():
+    api = dc_api.API()
+    async for metadoc in api.board(board_id="programming"):
+        print(metadoc.title)          # => 땔감 벗어나는법.tip
+        doc = await metadoc.document()
+        print(doc.contents)           # => 자바를 한다
+        async for comm in metadoc.comments():
+            print(com.contents)       # => ㅇㅇ(1.224) 지랄 ㄴ
+
+
+import asyncio
+asyncio.run(run())
 ```
 
 ```python
