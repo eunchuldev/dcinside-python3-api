@@ -3,34 +3,45 @@ Deadly simple non official async dcinside api for python3
 
 ```python
 # 프로그래밍 갤러리 글 무한 크롤링
-def run():
-    api = dc_api.API()
-    async for metadoc in api.board(board_id="programming"):
-        print(metadoc.title)          # => 땔감 벗어나는법.tip
-        doc = await metadoc.document()
+import asyncio
+import dc_api
+
+async def run():
+  async with dc_api.API() as api:
+    async for index in api.board(board_id="programming"):
+        print(index.title)            # => 땔감 벗어나는법.tip
+        doc = await index.document()
         print(doc.contents)           # => 자바를 한다
-        async for comm in metadoc.comments():
+        for img in doc.images:
+          img.download('./img')       # => ./img.gif
+        async for comm in index.comments():
             print(com.contents)       # => ㅇㅇ(1.224) 지랄 ㄴ
 
-
-import asyncio
 asyncio.run(run())
 ```
 
 ```python
-api = dc_api.API()
+import asyncio
+import dc_api
 
-# 댓글 작성
-await api.write_comment(board_id="programming", doc_id=149123, name="ㅇㅇ", password="1234", contents="ㅇㅈ")
+async def run():
+  api = dc_api.API()
 
-# 글 작성
-doc_id = await api.write_document(board_id="programming", title="java vs python", contents="닥치고 자바", name="ㅇㅇ", password="1234")
+  # 댓글 작성
+  await api.write_comment(board_id="programming", doc_id=149123, name="ㅇㅇ", password="1234", contents="ㅇㅈ")
 
-# 글 삭제
-await api.remove_document(board_id="programming", doc_id=doc_id, password="1234")
+  # 글 작성
+  doc_id = await api.write_document(board_id="programming", title="java vs python", contents="닥치고 자바", name="ㅇㅇ", password="1234")
 
-# 마이너갤 글 작성
-doc_id = await api.write_document(board_id="aoegame", title="java vs python", contents="닥치고 자바", name="ㅇㅇ", password="1234", is_minor=True)
+  # 글 삭제
+  await api.remove_document(board_id="programming", doc_id=doc_id, password="1234")
+
+  # 마이너갤 글 작성
+  doc_id = await api.write_document(board_id="aoegame", title="java vs python", contents="닥치고 자바", name="ㅇㅇ", password="1234", is_minor=True)
+
+  await api.close()
+
+asyncio.run(run())
 ```
 
 # Dependency
@@ -61,17 +72,17 @@ import dc_api
 
 api = dc_api.API()
 
-async for metadoc in api.board(board_id="programming", num=-1, start_page=1, doc_id_upper_limit=None, doc_id_lower_limit=None):
-    metadoc.id         # => 835027
-    metadoc.board_id   # => programming
-    metadoc.title      # => "땔감 벗어나는법.tip"
-    metadoc.author     # => "ㅇㅇ(10.20)"
-    metadoc.time       # => datetime("2020-01-01 01:41:00.000000")
-    metadoc.comment_count # => 3
-    metadoc.voteup_count  # => 0
-    metadoc.view_count    # => 14
+async for index in api.board(board_id="programming", num=-1, start_page=1, doc_id_upper_limit=None, doc_id_lower_limit=None):
+    index.id         # => 835027
+    index.board_id   # => programming
+    index.title      # => "땔감 벗어나는법.tip"
+    index.author     # => "ㅇㅇ(10.20)"
+    index.time       # => datetime("2020-01-01 01:41:00.000000")
+    index.comment_count # => 3
+    index.voteup_count  # => 0
+    index.view_count    # => 14
 
-    doc = await metadoc.document()
+    doc = await index.document()
     doc.id         # => 835027
     doc.board_id   # => "programming"
     doc.title      # => "땔감 벗어나는법.tip"
@@ -91,8 +102,9 @@ async for metadoc in api.board(board_id="programming", num=-1, start_page=1, doc
         image.document_id # => 835027
         image.board_id    # => "programming"
         await image.load()# => raw image binary
+        await image.download(path) # => download image to local path(automatically add ext)
 
-    async for com in metadoc.comments():
+    async for com in index.comments():
         com.id            # => 123123
         com.parent_id     # => 123122
         com.time          # => "1:55"
