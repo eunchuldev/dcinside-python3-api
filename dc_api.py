@@ -4,6 +4,7 @@ import lxml.html
 from datetime import datetime, timedelta
 import itertools
 import aiohttp
+import filetype
 
 DOCS_PER_PAGE = 200
 
@@ -56,7 +57,7 @@ def peek(iterable):
         return None
     return first, itertools.chain((first,), iterable)
 
-class DocumentMetadata:
+class DocumentIndex:
     __slots__ = ["id", "subject", "title", "board_id", "has_image", "author", "time", "view_count", "comment_count", "voteup_count", "document", "comments"]
     def __init__(self, id, board_id, title, has_image, author, time, view_count, comment_count, voteup_count, document, comments, subject):
         self.id = id
@@ -110,32 +111,39 @@ class Comment:
         return f"ㄴ {self.author}: {self.contents or ''}{self.dccon or ''}{self.voice or ''} | {self.time}"
 
 class Image:
-    __slots__ = ["src", "document_id", "board_id"]
-    def __init__(self, src, document_id, board_id):
+    __slots__ = ["src", "document_id", "board_id", "session"]
+    def __init__(self, src, document_id, board_id, session):
         self.src = src
         self.document_id = document_id
         self.board_id = board_id
+        self.session = session
     async def load(self):
         headers = GET_HEADERS.copy()
         headers["Referer"] = "https://m.dcinside.com/board/{}/{}".format(self.board_id, self.document_id)
-        async with aiohttp.ClientSession().get(self.src, cookies=GALLERY_POSTS_COOKIES, headers=headers) as res:
-           return await res.read()
+        async with self.session.get(self.src, cookies=GALLERY_POSTS_COOKIES, headers=headers) as res:
+            return await res.read()
+    async def download(self, path):
+        headers = GET_HEADERS.copy()
+        headers["Referer"] = "https://m.dcinside.com/board/{}/{}".format(self.board_id, self.document_id)
+        async with self.session.get(self.src, cookies=GALLERY_POSTS_COOKIES, headers=headers) as res:
+            bytes = await res.read()
+            ext = filetype.guess(bytes).extension
+            with open(path + '.' + ext, 'wb') as f:
+                f.write(bytes)
+
 
 
 class API:
-    def sync_open(self):
+    def __init__(self):
         self.session = aiohttp.ClientSession(headers=GET_HEADERS, cookies={"_ga": "GA1.2.693521455.1588839880"})
-        return self
-    async def open(self):
-        self.session = aiohttp.ClientSession(headers=GET_HEADERS, cookies={"_ga": "GA1.2.693521455.1588839880"})
-        return self
     async def close(self):
         await self.session.close()
     async def __aenter__(self):
-        await self.open()
         return self
     async def __aexit__(self, *args, **kwargs):
         await self.close()
+    async def watch(self, board_id):
+        pass
     async def board(self, board_id, num=-1, start_page=1, document_id_upper_limit=None, document_id_lower_limit=None, is_minor=False):
         page = start_page
         while num:
@@ -144,8 +152,6 @@ class API:
                 text = await res.text()
                 parsed = lxml.html.fromstring(text)
             doc_headers = (i[0] for i in parsed.xpath("//ul[contains(@class, 'gall-detail-lst')]/li") if not i.get("class", "").startswith("ad"))
-            if not peek(doc_headers):
-                break
             for doc in doc_headers:
                 document_id = doc[0].get("href").split("/")[-1].split("?")[0]
                 if document_id_upper_limit and int(document_id_upper_limit) <= int(document_id): continue
@@ -155,15 +161,15 @@ class API:
                     author = doc[0][1][1].text
                     time= self.__parse_time(doc[0][1][2].text)
                     view_count= int(doc[0][1][3].text.split()[-1])
-                    voteup_count= int(doc[0][1][4].text.split()[-1])
+                    voteup_count= int(doc[0][1][4][0].text.split()[-1])
                 else:
                     subject = None
                     author = doc[0][1][0].text
                     time= self.__parse_time(doc[0][1][1].text)
                     view_count= int(doc[0][1][2].text.split()[-1])
-                    voteup_count= int(doc[0][1][3].text.split()[-1])
+                    voteup_count= int(doc[0][1][3].text_content().split()[-1])
                 title = doc[0][0][1].text
-                metadata = DocumentMetadata(
+                indexdata = DocumentIndex(
                     id= document_id,
                     board_id=board_id,
                     title= title,
@@ -177,7 +183,7 @@ class API:
                     time= time,
                     subject=subject
                     )
-                yield(metadata)
+                yield(indexdata)
                 num-=1
                 if num==0: 
                     break
@@ -188,14 +194,15 @@ class API:
     async def document(self, board_id, document_id):
         url = "https://m.dcinside.com/board/{}/{}".format(board_id, document_id)
         async with self.session.get(url) as res:
+            text = await res.text()
             parsed = lxml.html.fromstring(await res.text())
         doc_content_container = parsed.xpath("//div[@class='thum-txtin']")
-        doc_head_containers = parsed.xpath("//div[@class='gallview-tit-box']")
+        doc_head_containers = parsed.xpath("//div[@class='gallview-tit-box ']")
         if not len(doc_head_containers):
             return None
         doc_head_container = doc_head_containers[0]
         if len(doc_content_container):
-            title = doc_head_container[0].text.strip()
+            title = " ".join(doc_head_container[0].text.strip().split())
             author = doc_head_container[1][0][0].text.strip()
             author_id = None if len(doc_head_container[1]) <= 1 else doc_head_container[1][1][0].get("href").split("/")[-1]
             time = doc_head_container[1][0][1].text.strip()
@@ -203,7 +210,7 @@ class API:
             for adv in doc_content.xpath("div[@class='adv-groupin']"):
                 adv.getparent().remove(adv)
             for adv in doc_content.xpath("//img"):
-                if adv.get("src", "").startswith("https://nstatic"):
+                if adv.get("src", "").startswith("https://nstatic") and not adv.get("data-original"):
                     adv.getparent().remove(adv)
             return Document(
                     id = document_id,
@@ -212,7 +219,14 @@ class API:
                     author= author,
                     author_id =author_id,
                     contents= '\n'.join(i.strip() for i in doc_content.itertext() if i.strip() and not i.strip().startswith("이미지 광고")),
-                    images= [Image(i.get("src"), board_id, document_id) for i in doc_content.xpath("//img") if not i.get("src","").startswith("https://nstatic")],
+                    images= [Image(
+                        src=i.get("data-original", i.get("src")), 
+                        board_id=board_id, 
+                        document_id=document_id, 
+                        session=self.session)
+                        for i in doc_content.xpath("//img") 
+                            if i.get("data-original") or (not i.get("src","").startswith("https://nstatic") and
+                                not i.get("src", "").startswith("https://img.iacstatic.co.kr") and i.get("src"))],
                     html= lxml.html.tostring(doc_content, encoding=str),
                     view_count= int(parsed.xpath("//ul[@class='ginfo2']")[1][0].text.strip().split()[1]),
                     voteup_count= int(parsed.xpath("//span[@id='recomm_btn']")[0].text.strip()),
@@ -476,11 +490,6 @@ class API:
             }
         async with self.session.post(url, headers=header, data=payload, cookies=cookies) as res:
             res = await res.text()
-        document_id = res[res.rfind("/")+1:-2]
-        if document_id.isdigit():
-            return document_id
-        else:
-            raise Exception("Error while write document:" + str(res))
 
     async def __access(self, token_verify, target_url, require_conkey=True, csrf_token=None):
         if require_conkey:
@@ -525,7 +534,7 @@ class Test(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         pass
     async def asyncSetUp(self):
-        self.api = await API().open()
+        self.api = API()
     async def asyncTearDown(self):
         await self.api.close()
     async def test_async_with(self):
@@ -568,24 +577,24 @@ class Test(unittest.IsolatedAsyncioTestCase):
                 self.assertLess(comm.time, datetime.now() + timedelta(hours=1))
             break
     async def test_read_board_one(self):
-        async for doc in self.api.board(board_id='baseball_new9', num=1):
+        async for doc in self.api.board(board_id='programming', num=1):
             for attr in doc.__slots__:
                 if attr == 'subject': continue
                 val = getattr(doc, attr)
                 self.assertNotEqual(val, None, attr)
                 self.assertNotEqual(val, '', attr)
-            self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
+            self.assertGreater(doc.time, datetime.now() - timedelta(hours=24))
             self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
     async def test_read_board_many(self):
         count = 0
-        async for doc in self.api.board(board_id='baseball_new9', num=201):
+        async for doc in self.api.board(board_id='programming', num=201):
             for attr in doc.__slots__:
                 if attr == 'subject': continue
                 val = getattr(doc, attr)
                 self.assertNotEqual(val, None, attr)
                 self.assertNotEqual(val, '', attr)
             count += 1
-            self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
+            self.assertGreater(doc.time, datetime.now() - timedelta(hours=24))
             self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
         self.assertAlmostEqual(count, 201)
     async def test_read_recent_comments(self):
@@ -599,7 +608,7 @@ class Test(unittest.IsolatedAsyncioTestCase):
                     self.assertNotEqual(val, None, attr)
                     self.assertNotEqual(val, '', attr)
                 self.assertNotEqual(comm.contents or comm.dccon or comm.voice, None)
-                self.assertGreater(comm.time, datetime.now() - timedelta(hours=1))
+                self.assertGreater(comm.time, datetime.now() - timedelta(hours=24))
                 self.assertLess(comm.time, datetime.now() + timedelta(hours=1))
             break
     async def test_minor_document(self):
@@ -613,7 +622,7 @@ class Test(unittest.IsolatedAsyncioTestCase):
         self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
         self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
     async def test_document(self):
-        doc = await (await self.api.board(board_id='baseball_new9', num=1).__anext__()).document()
+        doc = await (await self.api.board(board_id='programming', num=1).__anext__()).document()
         self.assertNotEqual(doc, None)
         for attr in doc.__slots__:
             if attr in ['author_id', 'subject']: continue
@@ -621,6 +630,7 @@ class Test(unittest.IsolatedAsyncioTestCase):
             self.assertNotEqual(val, None, attr)
         self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
         self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
+    '''
     async def test_write_mod_del_document_comment(self):
         board_id='programming'
         doc_id = await self.api.write_document(board_id=board_id, title="제목", contents="내용", name="닉네임", password="비밀번호")
@@ -651,6 +661,7 @@ class Test(unittest.IsolatedAsyncioTestCase):
         await self.api.remove_document(board_id=board_id, document_id=doc_id, password="비밀번호")
         doc = await self.api.document(board_id=board_id, document_id=doc_id)
         self.assertEqual(doc, None)
+    '''
 
 if __name__ == "__main__":
     unittest.main()
