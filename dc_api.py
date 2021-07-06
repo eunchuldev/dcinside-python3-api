@@ -58,8 +58,8 @@ def peek(iterable):
     return first, itertools.chain((first,), iterable)
 
 class DocumentIndex:
-    __slots__ = ["id", "subject", "title", "board_id", "has_image", "author", "time", "view_count", "comment_count", "voteup_count", "document", "comments"]
-    def __init__(self, id, board_id, title, has_image, author, time, view_count, comment_count, voteup_count, document, comments, subject):
+    __slots__ = ["id", "subject", "title", "board_id", "has_image", "author", "time", "view_count", "comment_count", "voteup_count", "document", "comments", "image_available"]
+    def __init__(self, id, board_id, title, has_image, author, time, view_count, comment_count, voteup_count, document, comments, subject, image_available):
         self.id = id
         self.board_id = board_id
         self.title = title
@@ -72,6 +72,7 @@ class DocumentIndex:
         self.document = document
         self.comments = comments
         self.subject = subject
+        self.image_available = image_available
     def __str__(self):
         return f"{self.subject or ''}\t|{self.id}\t|{self.time.isoformat()}\t|{self.author}\t|{self.title}({self.comment_count}) +{self.voteup_count}"
 
@@ -188,6 +189,10 @@ class API:
                     time= self.__parse_time(doc[0][1][1].text)
                     view_count= int(doc[0][1][2].text.split()[-1])
                     voteup_count= int(doc[0][1][3].text_content().split()[-1])
+                if "sp-lst-img" in doc[0][0][0].get("class"):
+                    image_available = True
+                else:
+                    image_available = False
                 title = doc[0][0][1].text
                 indexdata = DocumentIndex(
                     id= document_id,
@@ -201,7 +206,8 @@ class API:
                     document= lambda: self.document(board_id, document_id),
                     comments= lambda: self.comments(board_id, document_id),
                     time= time,
-                    subject=subject
+                    subject=subject,
+                    image_available=image_available
                     )
                 yield(indexdata)
                 num-=1
