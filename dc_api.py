@@ -150,15 +150,16 @@ class API:
         async with self.session.get(url) as res:
             text = await res.text()
             parsed = lxml.html.fromstring(text)
-        for i in range(1, len(parsed.xpath('//*[@id="total_1"]/li'))+1):
-            link = parsed.xpath('//*[@id="total_1"]/li[' + str(i) + "]/a")[0]
-            board_name = parsed.xpath('//*[@id="total_1"]/li[' + str(i) + "]")[0].text_content().strip()
-            board_id = link.get("href").split("/")[-1] 
-            if name:
-                if name in board_name:
-                    gallerys[board_name] = board_id
-            else:
-                gallerys[board_name] = board_id
+        for i in parsed.xpath('//*[@id="total_1"]/li'):
+            for e in i.iter():
+                if e.tag == "a":
+                    board_name = e.text
+                    board_id = e.get("href").split("/")[-1]
+                    if name:
+                        if name in board_name:
+                            gallerys[board_name] = board_id
+                    else:
+                        gallerys[board_name] = board_id
         return gallerys
     async def board(self, board_id, num=-1, start_page=1, recommend=False, document_id_upper_limit=None, document_id_lower_limit=None, is_minor=False):
         page = start_page
