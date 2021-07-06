@@ -144,10 +144,13 @@ class API:
         await self.close()
     async def watch(self, board_id):
         pass
-    async def board(self, board_id, num=-1, start_page=1, document_id_upper_limit=None, document_id_lower_limit=None, is_minor=False):
+    async def board(self, board_id, num=-1, start_page=1, recommend=False, document_id_upper_limit=None, document_id_lower_limit=None, is_minor=False):
         page = start_page
         while num:
-            url = "https://m.dcinside.com/board/{}?page={}".format(board_id, page)
+            if recommend:
+                url = "https://m.dcinside.com/board/{}?recommend=1&page={}".format(board_id, page)
+            else:
+                url = "https://m.dcinside.com/board/{}?page={}".format(board_id, page)
             async with self.session.get(url) as res:
                 text = await res.text()
                 parsed = lxml.html.fromstring(text)
