@@ -72,7 +72,7 @@ import dc_api
 
 api = dc_api.API()
 
-async for index in api.board(board_id="programming", num=-1, start_page=1, doc_id_upper_limit=None, doc_id_lower_limit=None):
+async for index in api.board(board_id="programming", num=-1, start_page=1, document_id_upper_limit=None, document_id_lower_limit=None):
     index.id         # => 835027
     index.board_id   # => programming
     index.title      # => "땔감 벗어나는법.tip"

@@ -58,8 +58,8 @@ def peek(iterable):
     return first, itertools.chain((first,), iterable)
 
 class DocumentIndex:
-    __slots__ = ["id", "subject", "title", "board_id", "has_image", "author", "time", "view_count", "comment_count", "voteup_count", "document", "comments"]
-    def __init__(self, id, board_id, title, has_image, author, time, view_count, comment_count, voteup_count, document, comments, subject):
+    __slots__ = ["id", "subject", "title", "board_id", "has_image", "author", "time", "view_count", "comment_count", "voteup_count", "document", "comments", "image_available"]
+    def __init__(self, id, board_id, title, has_image, author, time, view_count, comment_count, voteup_count, document, comments, subject, image_available):
         self.id = id
         self.board_id = board_id
         self.title = title
@@ -72,6 +72,7 @@ class DocumentIndex:
         self.document = document
         self.comments = comments
         self.subject = subject
+        self.image_available = image_available
     def __str__(self):
         return f"{self.subject or ''}\t|{self.id}\t|{self.time.isoformat()}\t|{self.author}\t|{self.title}({self.comment_count}) +{self.voteup_count}"
 
@@ -144,10 +145,30 @@ class API:
         await self.close()
     async def watch(self, board_id):
         pass
-    async def board(self, board_id, num=-1, start_page=1, document_id_upper_limit=None, document_id_lower_limit=None, is_minor=False):
+    async def gallery(self, name=None):
+        url = "https://m.dcinside.com/galltotal"
+        gallerys={}
+        async with self.session.get(url) as res:
+            text = await res.text()
+            parsed = lxml.html.fromstring(text)
+        for i in parsed.xpath('//*[@id="total_1"]/li'):
+            for e in i.iter():
+                if e.tag == "a":
+                    board_name = e.text
+                    board_id = e.get("href").split("/")[-1]
+                    if name:
+                        if name in board_name:
+                            gallerys[board_name] = board_id
+                    else:
+                        gallerys[board_name] = board_id
+        return gallerys
+    async def board(self, board_id, num=-1, start_page=1, recommend=False, document_id_upper_limit=None, document_id_lower_limit=None, is_minor=False):
         page = start_page
         while num:
-            url = "https://m.dcinside.com/board/{}?page={}".format(board_id, page)
+            if recommend:
+                url = "https://m.dcinside.com/board/{}?recommend=1&page={}".format(board_id, page)
+            else:
+                url = "https://m.dcinside.com/board/{}?page={}".format(board_id, page)
             async with self.session.get(url) as res:
                 text = await res.text()
                 parsed = lxml.html.fromstring(text)
@@ -168,6 +189,10 @@ class API:
                     time= self.__parse_time(doc[0][1][1].text)
                     view_count= int(doc[0][1][2].text.split()[-1])
                     voteup_count= int(doc[0][1][3].text_content().split()[-1])
+                if "sp-lst-img" in doc[0][0][0].get("class"):
+                    image_available = True
+                else:
+                    image_available = False
                 title = doc[0][0][1].text
                 indexdata = DocumentIndex(
                     id= document_id,
@@ -181,7 +206,8 @@ class API:
                     document= lambda: self.document(board_id, document_id),
                     comments= lambda: self.comments(board_id, document_id),
                     time= time,
-                    subject=subject
+                    subject=subject,
+                    image_available=image_available
                     )
                 yield(indexdata)
                 num-=1
@@ -529,139 +555,143 @@ class API:
                 return datetime.strptime(time, "%Y-%m-%d %H:%M:%S")
 
 import unittest
+import sys
 
-class Test(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
-        pass
-    async def asyncSetUp(self):
-        self.api = API()
-    async def asyncTearDown(self):
-        await self.api.close()
-    async def test_async_with(self):
-        async with API() as api:
-            doc = api.board(board_id='aoegame', num=1).__anext__()
+# Check version info
+version = sys.version_info
+if version.major >= 3 and version.minor >= 8:
+    class Test(unittest.IsolatedAsyncioTestCase):
+        def setUp(self):
+            pass
+        async def asyncSetUp(self):
+            self.api = API()
+        async def asyncTearDown(self):
+            await self.api.close()
+        async def test_async_with(self):
+            async with API() as api:
+                doc = api.board(board_id='aoegame', num=1).__anext__()
+                self.assertNotEqual(doc, None)
+        async def test_read_minor_board_one(self):
+            async for doc in self.api.board(board_id='aoegame', num=1):
+                for attr in doc.__slots__:
+                    if attr == 'subject': continue
+                    val = getattr(doc, attr)
+                    self.assertNotEqual(val, None, attr)
+                    self.assertNotEqual(val, '', attr)
+                self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
+                self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
+        async def test_read_minor_board_many(self):
+            count = 0
+            async for doc in self.api.board(board_id='aoegame', num=201):
+                for attr in doc.__slots__:
+                    if attr == 'subject': continue
+                    val = getattr(doc, attr)
+                    self.assertNotEqual(val, None, attr)
+                    self.assertNotEqual(val, '', attr)
+                count += 1
+                self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
+                self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
+            self.assertAlmostEqual(count, 201)
+        async def test_read_minor_recent_comments(self):
+            async for doc in self.api.board(board_id='aoegame'):
+                comments = [comm async for comm in doc.comments()]
+                if not comments: continue
+                for comm in comments:
+                    for attr in comm.__slots__:
+                        if attr in ['contents', 'dccon', 'voice', 'author_id']: continue
+                        val = getattr(comm, attr)
+                        self.assertNotEqual(val, None, attr)
+                        self.assertNotEqual(val, '', attr)
+                    self.assertNotEqual(comm.contents or comm.dccon or comm.voice, None)
+                    self.assertGreater(comm.time, datetime.now() - timedelta(hours=1))
+                    self.assertLess(comm.time, datetime.now() + timedelta(hours=1))
+                break
+        async def test_read_board_one(self):
+            async for doc in self.api.board(board_id='programming', num=1):
+                for attr in doc.__slots__:
+                    if attr == 'subject': continue
+                    val = getattr(doc, attr)
+                    self.assertNotEqual(val, None, attr)
+                    self.assertNotEqual(val, '', attr)
+                self.assertGreater(doc.time, datetime.now() - timedelta(hours=24))
+                self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
+        async def test_read_board_many(self):
+            count = 0
+            async for doc in self.api.board(board_id='programming', num=201):
+                for attr in doc.__slots__:
+                    if attr == 'subject': continue
+                    val = getattr(doc, attr)
+                    self.assertNotEqual(val, None, attr)
+                    self.assertNotEqual(val, '', attr)
+                count += 1
+                self.assertGreater(doc.time, datetime.now() - timedelta(hours=24))
+                self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
+            self.assertAlmostEqual(count, 201)
+        async def test_read_recent_comments(self):
+            async for doc in self.api.board(board_id='aoegame'):
+                comments = [comm async for comm in doc.comments()]
+                if not comments: continue
+                for comm in comments:
+                    for attr in comm.__slots__:
+                        if attr in ['contents', 'dccon', 'voice', 'author_id']: continue
+                        val = getattr(comm, attr)
+                        self.assertNotEqual(val, None, attr)
+                        self.assertNotEqual(val, '', attr)
+                    self.assertNotEqual(comm.contents or comm.dccon or comm.voice, None)
+                    self.assertGreater(comm.time, datetime.now() - timedelta(hours=24))
+                    self.assertLess(comm.time, datetime.now() + timedelta(hours=1))
+                break
+        async def test_minor_document(self):
+            doc = await (await self.api.board(board_id='aoegame', num=1).__anext__()).document()
             self.assertNotEqual(doc, None)
-    async def test_read_minor_board_one(self):
-        async for doc in self.api.board(board_id='aoegame', num=1):
             for attr in doc.__slots__:
-                if attr == 'subject': continue
+                if attr in ['author_id', 'subject']: continue
                 val = getattr(doc, attr)
                 self.assertNotEqual(val, None, attr)
                 self.assertNotEqual(val, '', attr)
             self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
             self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
-    async def test_read_minor_board_many(self):
-        count = 0
-        async for doc in self.api.board(board_id='aoegame', num=201):
+        async def test_document(self):
+            doc = await (await self.api.board(board_id='programming', num=1).__anext__()).document()
+            self.assertNotEqual(doc, None)
             for attr in doc.__slots__:
-                if attr == 'subject': continue
+                if attr in ['author_id', 'subject']: continue
                 val = getattr(doc, attr)
                 self.assertNotEqual(val, None, attr)
-                self.assertNotEqual(val, '', attr)
-            count += 1
             self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
             self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
-        self.assertAlmostEqual(count, 201)
-    async def test_read_minor_recent_comments(self):
-        async for doc in self.api.board(board_id='aoegame'):
-            comments = [comm async for comm in doc.comments()]
-            if not comments: continue
-            for comm in comments:
-                for attr in comm.__slots__:
-                    if attr in ['contents', 'dccon', 'voice', 'author_id']: continue
-                    val = getattr(comm, attr)
-                    self.assertNotEqual(val, None, attr)
-                    self.assertNotEqual(val, '', attr)
-                self.assertNotEqual(comm.contents or comm.dccon or comm.voice, None)
-                self.assertGreater(comm.time, datetime.now() - timedelta(hours=1))
-                self.assertLess(comm.time, datetime.now() + timedelta(hours=1))
-            break
-    async def test_read_board_one(self):
-        async for doc in self.api.board(board_id='programming', num=1):
-            for attr in doc.__slots__:
-                if attr == 'subject': continue
-                val = getattr(doc, attr)
-                self.assertNotEqual(val, None, attr)
-                self.assertNotEqual(val, '', attr)
-            self.assertGreater(doc.time, datetime.now() - timedelta(hours=24))
-            self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
-    async def test_read_board_many(self):
-        count = 0
-        async for doc in self.api.board(board_id='programming', num=201):
-            for attr in doc.__slots__:
-                if attr == 'subject': continue
-                val = getattr(doc, attr)
-                self.assertNotEqual(val, None, attr)
-                self.assertNotEqual(val, '', attr)
-            count += 1
-            self.assertGreater(doc.time, datetime.now() - timedelta(hours=24))
-            self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
-        self.assertAlmostEqual(count, 201)
-    async def test_read_recent_comments(self):
-        async for doc in self.api.board(board_id='aoegame'):
-            comments = [comm async for comm in doc.comments()]
-            if not comments: continue
-            for comm in comments:
-                for attr in comm.__slots__:
-                    if attr in ['contents', 'dccon', 'voice', 'author_id']: continue
-                    val = getattr(comm, attr)
-                    self.assertNotEqual(val, None, attr)
-                    self.assertNotEqual(val, '', attr)
-                self.assertNotEqual(comm.contents or comm.dccon or comm.voice, None)
-                self.assertGreater(comm.time, datetime.now() - timedelta(hours=24))
-                self.assertLess(comm.time, datetime.now() + timedelta(hours=1))
-            break
-    async def test_minor_document(self):
-        doc = await (await self.api.board(board_id='aoegame', num=1).__anext__()).document()
-        self.assertNotEqual(doc, None)
-        for attr in doc.__slots__:
-            if attr in ['author_id', 'subject']: continue
-            val = getattr(doc, attr)
-            self.assertNotEqual(val, None, attr)
-            self.assertNotEqual(val, '', attr)
-        self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
-        self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
-    async def test_document(self):
-        doc = await (await self.api.board(board_id='programming', num=1).__anext__()).document()
-        self.assertNotEqual(doc, None)
-        for attr in doc.__slots__:
-            if attr in ['author_id', 'subject']: continue
-            val = getattr(doc, attr)
-            self.assertNotEqual(val, None, attr)
-        self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
-        self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
-    '''
-    async def test_write_mod_del_document_comment(self):
-        board_id='programming'
-        doc_id = await self.api.write_document(board_id=board_id, title="제목", contents="내용", name="닉네임", password="비밀번호")
-        doc = await self.api.document(board_id=board_id, document_id=doc_id)
-        self.assertEqual(doc.contents, "내용")
-        doc_id = await self.api.modify_document(board_id=board_id, document_id=doc_id, title="수정된 제목", contents="수정된 내용", name="수정된 닉네임", password="비밀번호")
-        doc = await self.api.document(board_id=board_id, document_id=doc_id)
-        self.assertEqual(doc.contents, "수정된 내용")
-        comm_id = await self.api.write_comment(board_id=board_id, document_id=doc_id, contents="댓글", name="닉네임", password="비밀번호")
-        doc = await self.api.document(board_id=board_id, document_id=doc_id)
-        comm = await doc.comments().__anext__()
-        self.assertEqual(comm.contents, "댓글")
-        await self.api.remove_document(board_id=board_id, document_id=doc_id, password="비밀번호")
-        doc = await self.api.document(board_id=board_id, document_id=doc_id)
-        self.assertEqual(doc, None)
-    async def test_minor_write_mod_del_document_comment(self):
-        board_id='stick'
-        doc_id = await self.api.write_document(board_id=board_id, title="제목", contents="내용", name="닉네임", password="비밀번호", is_minor=True)
-        doc = await self.api.document(board_id=board_id, document_id=doc_id)
-        self.assertEqual(doc.contents, "내용")
-        doc_id = await self.api.modify_document(board_id=board_id, document_id=doc_id, title="수정된 제목", contents="수정된 내용", name="수정된 닉네임", password="비밀번호", is_minor=True)
-        doc = await self.api.document(board_id=board_id, document_id=doc_id)
-        self.assertEqual(doc.contents, "수정된 내용")
-        comm_id = await self.api.write_comment(board_id=board_id, document_id=doc_id, contents="댓글", name="닉네임", password="비밀번호")
-        doc = await self.api.document(board_id=board_id, document_id=doc_id)
-        comm = await doc.comments().__anext__()
-        self.assertEqual(comm.contents, "댓글")
-        await self.api.remove_document(board_id=board_id, document_id=doc_id, password="비밀번호")
-        doc = await self.api.document(board_id=board_id, document_id=doc_id)
-        self.assertEqual(doc, None)
-    '''
+        '''
+        async def test_write_mod_del_document_comment(self):
+            board_id='programming'
+            doc_id = await self.api.write_document(board_id=board_id, title="제목", contents="내용", name="닉네임", password="비밀번호")
+            doc = await self.api.document(board_id=board_id, document_id=doc_id)
+            self.assertEqual(doc.contents, "내용")
+            doc_id = await self.api.modify_document(board_id=board_id, document_id=doc_id, title="수정된 제목", contents="수정된 내용", name="수정된 닉네임", password="비밀번호")
+            doc = await self.api.document(board_id=board_id, document_id=doc_id)
+            self.assertEqual(doc.contents, "수정된 내용")
+            comm_id = await self.api.write_comment(board_id=board_id, document_id=doc_id, contents="댓글", name="닉네임", password="비밀번호")
+            doc = await self.api.document(board_id=board_id, document_id=doc_id)
+            comm = await doc.comments().__anext__()
+            self.assertEqual(comm.contents, "댓글")
+            await self.api.remove_document(board_id=board_id, document_id=doc_id, password="비밀번호")
+            doc = await self.api.document(board_id=board_id, document_id=doc_id)
+            self.assertEqual(doc, None)
+        async def test_minor_write_mod_del_document_comment(self):
+            board_id='stick'
+            doc_id = await self.api.write_document(board_id=board_id, title="제목", contents="내용", name="닉네임", password="비밀번호", is_minor=True)
+            doc = await self.api.document(board_id=board_id, document_id=doc_id)
+            self.assertEqual(doc.contents, "내용")
+            doc_id = await self.api.modify_document(board_id=board_id, document_id=doc_id, title="수정된 제목", contents="수정된 내용", name="수정된 닉네임", password="비밀번호", is_minor=True)
+            doc = await self.api.document(board_id=board_id, document_id=doc_id)
+            self.assertEqual(doc.contents, "수정된 내용")
+            comm_id = await self.api.write_comment(board_id=board_id, document_id=doc_id, contents="댓글", name="닉네임", password="비밀번호")
+            doc = await self.api.document(board_id=board_id, document_id=doc_id)
+            comm = await doc.comments().__anext__()
+            self.assertEqual(comm.contents, "댓글")
+            await self.api.remove_document(board_id=board_id, document_id=doc_id, password="비밀번호")
+            doc = await self.api.document(board_id=board_id, document_id=doc_id)
+            self.assertEqual(doc, None)
+        '''
 
 if __name__ == "__main__":
     unittest.main()
