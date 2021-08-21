@@ -98,10 +98,10 @@ class Document:
         return f"{self.subject or ''}\t|{self.id}\t|{self.time.isoformat()}\t|{self.author}\t|{self.title}({self.comment_count}) +{self.voteup_count} -{self.votedown_count}\n{self.contents}"
 
 class Comment:
-    __slots__ = ["id", "parent_id", "author", "author_id", "contents", "dccon", "voice", "time"]
-    def __init__(self, id, parent_id, author, author_id, contents, dccon, voice, time):
+    __slots__ = ["id", "is_reply", "author", "author_id", "contents", "dccon", "voice", "time"]
+    def __init__(self, id, is_reply, author, author_id, contents, dccon, voice, time):
         self.id = id
-        self.parent_id = parent_id
+        self.is_reply = is_reply
         self.author = author
         self.author_id = author_id
         self.contents = contents
@@ -109,7 +109,7 @@ class Comment:
         self.voice = voice
         self.time = time
     def __str__(self):
-        return f"ㄴ {self.author}: {self.contents or ''}{self.dccon or ''}{self.voice or ''} | {self.time}"
+        return f"ㄴ{'ㄴ' if self.is_reply else ''} {self.author}: {self.contents or ''}{self.dccon or ''}{self.voice or ''} | {self.time}"
 
 class Image:
     __slots__ = ["src", "document_id", "board_id", "session"]
@@ -280,13 +280,12 @@ class API:
             async with self.session.post(url, headers=XML_HTTP_REQ_HEADERS, data=payload) as res:
                 parsed = lxml.html.fromstring(await res.text())
             if not len(parsed[1].xpath("li")): break
-            #for li in reversed(parsed[1].xpath("li")):
             for li in parsed[1].xpath("li"):
                 if not len(li[0]): continue
                 yield Comment(
                     id= li.get("no"),
-                    parent_id= li.get("m_no"),
-                    author= li[0].text + ("{}".format(li[0][0].text) if li[0][0].text else ""),
+                    is_reply = li.get("class").strip().endswith('add'),
+                    author = li[0].text + ("{}".format(li[0][0].text) if li[0][0].text else ""),
                     author_id= li[0][1].get("data-info", None) if len(li[0]) > 1 else None,
                     contents= '\n'.join(i.strip() for i in li[1].itertext()),
                     dccon= li[1][0].get("data-original", li[1][0].get("src", None)) if len(li[1]) and li[1][0].tag=="img" else None,
@@ -592,6 +591,9 @@ if version.major >= 3 and version.minor >= 8:
                 self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
                 self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
             self.assertAlmostEqual(count, 201)
+        async def test_read_major_comment(self):
+            comms = ' '.join([str(comm) async for comm in self.api.comments(board_id='programming', document_id=1847628)])
+            self.assertEqual(comms, 'ㄴ ㅇㅇ(112.172): 뭐하러일함  - dc App | 2021-08-21 12:28:00 ㄴ ㅇㅇ(39.121): 나였으면 뒤질때까지 디씨질만 함 | 2021-08-21 12:32:00 ㄴㄴ ㅇㅇ(202.150): 심심한 인생 | 2021-08-21 12:40:00 ㄴㄴ ㅇㅇ(39.121): 난 디씨질이 세상에서 젤 재밌어 | 2021-08-21 12:42:00 ㄴ ㅇㅇ(202.150): 저건 그냥 부자인데 ㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋ | 2021-08-21 12:45:00')
         async def test_read_minor_recent_comments(self):
             async for doc in self.api.board(board_id='aoegame'):
                 comments = [comm async for comm in doc.comments()]

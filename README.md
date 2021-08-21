@@ -106,7 +106,7 @@ async for index in api.board(board_id="programming", num=-1, start_page=1, docum
 
     async for com in index.comments():
         com.id            # => 123123
-        com.parent_id     # => 123122
+        com.is_reply      # => False
         com.time          # => "1:55"
         com.author        # => "ㅇㅇ(192.23)"
         com.author_id     # => None (고닉일 경우 아이디 반환)
