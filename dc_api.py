@@ -281,7 +281,7 @@ class API:
                 parsed = lxml.html.fromstring(await res.text())
             if not len(parsed[1].xpath("li")): break
             for li in parsed[1].xpath("li"):
-                if not len(li[0]): continue
+                if not len(li[0]) or not li[0].text: continue
                 yield Comment(
                     id= li.get("no"),
                     is_reply = li.get("class").strip().endswith('add'),
