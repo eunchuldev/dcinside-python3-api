@@ -284,7 +284,7 @@ class API:
                 if not len(li[0]) or not li[0].text: continue
                 yield Comment(
                     id= li.get("no"),
-                    is_reply = li.get("class").strip().endswith('add'),
+                    is_reply = "comment-add" in li.get("class", "").strip().split(),
                     author = li[0].text + ("{}".format(li[0][0].text) if li[0][0].text else ""),
                     author_id= li[0][1].get("data-info", None) if len(li[0]) > 1 else None,
                     contents= '\n'.join(i.strip() for i in li[1].itertext()),
