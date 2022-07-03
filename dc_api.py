@@ -221,9 +221,9 @@ class API:
         url = "https://m.dcinside.com/board/{}/{}".format(board_id, document_id)
         async with self.session.get(url) as res:
             text = await res.text()
-            parsed = lxml.html.fromstring(await res.text())
+            parsed = lxml.html.fromstring(text)
         doc_content_container = parsed.xpath("//div[@class='thum-txtin']")
-        doc_head_containers = parsed.xpath("//div[@class='gallview-tit-box ']")
+        doc_head_containers = parsed.xpath("//div[starts-with(@class, 'gallview-tit-box')]")
         if not len(doc_head_containers):
             return None
         doc_head_container = doc_head_containers[0]
