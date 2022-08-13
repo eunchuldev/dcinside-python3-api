@@ -6,10 +6,13 @@ import unittest
 from dataclasses import dataclass, fields
 from datetime import datetime, timedelta
 from typing import Callable, List
+from zoneinfo import ZoneInfo
 
 import aiohttp
 import filetype
 import lxml.html
+
+KST = ZoneInfo("Asia/Seoul")
 
 DOCS_PER_PAGE = 200
 
@@ -591,28 +594,33 @@ class API:
         async with self.session.post(url, headers=headers, data=payload) as res:
             return (await res.json())["Block_key"]
 
-    def __parse_time(self, time):
-        today = datetime.now()
+    def __parse_time(self, time: str):
+        # 시간이 생략되면 23시 59분 59초로 fill.
+        # 지구 어디에서 DC를 보든 한국시간으로 답이 오는게 문제임.
+        # 그리고 한국시간으로 "오늘" 이 아니면 날짜만 표기됨.
+        # 그래서 한국시간 timezone 정보가 들어간 시간을 생성을 해야 함.
+        today = datetime.now(tz=KST)
+
         if len(time) <= 5:
             if time.find(":") > 0:
-                return datetime.strptime(time, "%H:%M").replace(year=today.year, month=today.month, day=today.day)
+                return datetime.strptime(time, "%H:%M").replace(year=today.year, month=today.month, day=today.day, tzinfo=KST)
             else:
-                return datetime.strptime(time, "%m.%d").replace(year=today.year, hour=23, minute=59, second=59)
+                return datetime.strptime(time, "%m.%d").replace(year=today.year, hour=23, minute=59, second=59, tzinfo=KST)
         elif len(time) <= 11:
             if time.find(":") > 0:
-                return datetime.strptime(time, "%m.%d %H:%M").replace(year=today.year)
+                return datetime.strptime(time, "%m.%d %H:%M").replace(year=today.year, tzinfo=KST)
             else:
-                return datetime.strptime(time, "%y.%m.%d").replace(year=today.year, hour=23, minute=59, second=59)
+                return datetime.strptime(time, "%y.%m.%d").replace(year=today.year, hour=23, minute=59, second=59, tzinfo=KST)
         elif len(time) <= 16:
             if time.count(".") >= 2:
-                return datetime.strptime(time, "%Y.%m.%d %H:%M")
+                return datetime.strptime(time, "%Y.%m.%d %H:%M").replace(tzinfo=KST)
             else:
-                return datetime.strptime(time, "%m.%d %H:%M:%S").replace(year=today.year)
+                return datetime.strptime(time, "%m.%d %H:%M:%S").replace(year=today.year, tzinfo=KST)
         else:
             if "." in time:
-                return datetime.strptime(time, "%Y.%m.%d %H:%M:%S")
+                return datetime.strptime(time, "%Y.%m.%d %H:%M:%S").replace(tzinfo=KST)
             else:
-                return datetime.strptime(time, "%Y-%m-%d %H:%M:%S")
+                return datetime.strptime(time, "%Y-%m-%d %H:%M:%S").replace(tzinfo=KST)
 
 
 # Check version info
@@ -642,8 +650,8 @@ if version.major >= 3 and version.minor >= 8:
                     self.assertNotEqual(val, None, field.name)
                     self.assertNotEqual(val, '', field.name)
                 self.assertGreater(
-                    doc.time, datetime.now() - timedelta(hours=1))
-                self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
+                    doc.time, datetime.now().astimezone() - timedelta(hours=1))
+                self.assertLess(doc.time, datetime.now().astimezone() + timedelta(hours=1))
 
         async def test_read_minor_board_many(self):
             count = 0
@@ -656,13 +664,13 @@ if version.major >= 3 and version.minor >= 8:
                     self.assertNotEqual(val, '', field.name)
                 count += 1
                 self.assertGreater(
-                    doc.time, datetime.now() - timedelta(hours=1))
-                self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
+                    doc.time, datetime.now().astimezone() - timedelta(hours=1))
+                self.assertLess(doc.time, datetime.now().astimezone() + timedelta(hours=1))
             self.assertAlmostEqual(count, 201)
 
         async def test_read_major_comment(self):
             comms = ' '.join([str(comm) async for comm in self.api.comments(board_id='programming', document_id=1847628)])
-            self.assertEqual(comms, 'ㄴ ㅇㅇ(112.172): 뭐하러일함  - dc App | 2021-08-21 12:28:00 ㄴ ㅇㅇ(39.121): 나였으면 뒤질때까지 디씨질만 함 | 2021-08-21 12:32:00 ㄴㄴ ㅇㅇ(202.150): 심심한 인생 | 2021-08-21 12:40:00 ㄴㄴ ㅇㅇ(39.121): 난 디씨질이 세상에서 젤 재밌어 | 2021-08-21 12:42:00 ㄴ ㅇㅇ(202.150): 저건 그냥 부자인데 ㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋ | 2021-08-21 12:45:00')
+            self.assertEqual(comms, 'ㄴ ㅇㅇ(112.172): 뭐하러일함  - dc App | 2021-08-21 12:28:00+09:00 ㄴ ㅇㅇ(39.121): 나였으면 뒤질때까지 디씨질만 함 | 2021-08-21 12:32:00+09:00 ㄴㄴ ㅇㅇ(202.150): 심심한 인생 | 2021-08-21 12:40:00+09:00 ㄴㄴ ㅇㅇ(39.121): 난 디씨질이 세상에서 젤 재밌어 | 2021-08-21 12:42:00+09:00 ㄴ ㅇㅇ(202.150): 저건 그냥 부자인데 ㅋㅋㅋㅋㅋㅋㅋㅋㅋㅋ | 2021-08-21 12:45:00+09:00')
 
         async def test_read_minor_recent_comments(self):
             async for doc in self.api.board(board_id='aoegame'):
@@ -679,9 +687,9 @@ if version.major >= 3 and version.minor >= 8:
                     self.assertNotEqual(
                         comm.contents or comm.dccon or comm.voice, None)
                     self.assertGreater(
-                        comm.time, datetime.now() - timedelta(hours=1))
+                        comm.time, datetime.now().astimezone() - timedelta(hours=1))
                     self.assertLess(
-                        comm.time, datetime.now() + timedelta(hours=1))
+                        comm.time, datetime.now().astimezone() + timedelta(hours=1))
                 break
 
         async def test_read_board_one(self):
@@ -693,8 +701,8 @@ if version.major >= 3 and version.minor >= 8:
                     self.assertNotEqual(val, None, field.name)
                     self.assertNotEqual(val, '', field.name)
                 self.assertGreater(
-                    doc.time, datetime.now() - timedelta(hours=24))
-                self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
+                    doc.time, datetime.now().astimezone() - timedelta(hours=24))
+                self.assertLess(doc.time, datetime.now().astimezone() + timedelta(hours=1))
 
         async def test_read_board_many(self):
             count = 0
@@ -707,8 +715,8 @@ if version.major >= 3 and version.minor >= 8:
                     self.assertNotEqual(val, '', field.name)
                 count += 1
                 self.assertGreater(
-                    doc.time, datetime.now() - timedelta(hours=24))
-                self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
+                    doc.time, datetime.now().astimezone() - timedelta(hours=24))
+                self.assertLess(doc.time, datetime.now().astimezone() + timedelta(hours=1))
             self.assertAlmostEqual(count, 201)
 
         async def test_read_recent_comments(self):
@@ -726,9 +734,9 @@ if version.major >= 3 and version.minor >= 8:
                     self.assertNotEqual(
                         comm.contents or comm.dccon or comm.voice, None)
                     self.assertGreater(
-                        comm.time, datetime.now() - timedelta(hours=24))
+                        comm.time, datetime.now().astimezone() - timedelta(hours=24))
                     self.assertLess(
-                        comm.time, datetime.now() + timedelta(hours=1))
+                        comm.time, datetime.now().astimezone() + timedelta(hours=1))
                 break
 
         async def test_minor_document(self):
@@ -740,8 +748,8 @@ if version.major >= 3 and version.minor >= 8:
                 val = getattr(doc, field.name)
                 self.assertNotEqual(val, None, field.name)
                 self.assertNotEqual(val, '', field.name)
-            self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
-            self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
+            self.assertGreater(doc.time, datetime.now().astimezone() - timedelta(hours=1))
+            self.assertLess(doc.time, datetime.now().astimezone() + timedelta(hours=1))
 
         async def test_document(self):
             doc = await (await self.api.board(board_id='programming', num=1).__anext__()).document()
@@ -751,8 +759,8 @@ if version.major >= 3 and version.minor >= 8:
                     continue
                 val = getattr(doc, field.name)
                 self.assertNotEqual(val, None, field.name)
-            self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
-            self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
+            self.assertGreater(doc.time, datetime.now().astimezone() - timedelta(hours=1))
+            self.assertLess(doc.time, datetime.now().astimezone() + timedelta(hours=1))
         '''
         async def test_write_mod_del_document_comment(self):
             board_id='programming'
