@@ -1,14 +1,15 @@
-import unittest
-import sys
-import re
-import asyncio
-import json
-import lxml.html
-from datetime import datetime, timedelta
 import itertools
+import json
+import re
+import sys
+import unittest
+from dataclasses import dataclass, fields
+from datetime import datetime, timedelta
+from typing import Callable, List
+
 import aiohttp
 import filetype
-
+import lxml.html
 
 DOCS_PER_PAGE = 200
 
@@ -67,72 +68,6 @@ def peek(iterable):
     return first, itertools.chain((first,), iterable)
 
 
-class DocumentIndex:
-    __slots__ = ["id", "subject", "title", "board_id", "has_image", "author", "time",
-                 "view_count", "comment_count", "voteup_count", "document", "comments", "image_available"]
-
-    def __init__(self, id, board_id, title, has_image, author, time, view_count, comment_count, voteup_count, document, comments, subject, image_available):
-        self.id = id
-        self.board_id = board_id
-        self.title = title
-        self.has_image = has_image
-        self.author = author
-        self.time = time
-        self.view_count = view_count
-        self.comment_count = comment_count
-        self.voteup_count = voteup_count
-        self.document = document
-        self.comments = comments
-        self.subject = subject
-        self.image_available = image_available
-
-    def __str__(self):
-        return f"{self.subject or ''}\t|{self.id}\t|{self.time.isoformat()}\t|{self.author}\t|{self.title}({self.comment_count}) +{self.voteup_count}"
-
-
-class Document:
-    __slots__ = ["id", "board_id", "title", "author", "author_id", "contents", "images", "html",
-                 "view_count", "voteup_count", "votedown_count", "logined_voteup_count", "time", "subject", "comments"]
-
-    def __init__(self, id, board_id, title, author, author_id, contents, images, html, view_count, voteup_count, votedown_count, logined_voteup_count, time, comments, subject=None):
-        self.id = id
-        self.board_id = board_id
-        self.title = title
-        self.author = author
-        self.author_id = author_id
-        self.contents = contents
-        self.images = images
-        self.html = html
-        self.view_count = view_count
-        self.voteup_count = voteup_count
-        self.votedown_count = votedown_count
-        self.logined_voteup_count = logined_voteup_count
-        self.comments = comments
-        self.time = time
-        self.subject = None
-
-    def __str__(self):
-        return f"{self.subject or ''}\t|{self.id}\t|{self.time.isoformat()}\t|{self.author}\t|{self.title}({self.comment_count}) +{self.voteup_count} -{self.votedown_count}\n{self.contents}"
-
-
-class Comment:
-    __slots__ = ["id", "is_reply", "author", "author_id",
-                 "contents", "dccon", "voice", "time"]
-
-    def __init__(self, id, is_reply, author, author_id, contents, dccon, voice, time):
-        self.id = id
-        self.is_reply = is_reply
-        self.author = author
-        self.author_id = author_id
-        self.contents = contents
-        self.dccon = dccon
-        self.voice = voice
-        self.time = time
-
-    def __str__(self):
-        return f"ㄴ{'ㄴ' if self.is_reply else ''} {self.author}: {self.contents or ''}{self.dccon or ''}{self.voice or ''} | {self.time}"
-
-
 class Image:
     __slots__ = ["src", "document_id", "board_id", "session"]
 
@@ -158,6 +93,63 @@ class Image:
             ext = filetype.guess(bytes).extension
             with open(path + '.' + ext, 'wb') as f:
                 f.write(bytes)
+
+
+@dataclass
+class DocumentIndex:
+    id: str
+    board_id: str
+    title: str
+    has_image: bool
+    author: str
+    time: datetime
+    view_count: int
+    comment_count: int
+    voteup_count: int
+    document: Callable
+    comments: Callable
+    subject: str
+    image_available: bool
+
+    def __str__(self):
+        return f"{self.subject or ''}\t|{self.id}\t|{self.time.isoformat()}\t|{self.author}\t|{self.title}({self.comment_count}) +{self.voteup_count}"
+
+
+@dataclass
+class Document:
+    id: str
+    board_id: str
+    title: str
+    author: str
+    author_id: str
+    contents: str
+    images: List[Image]
+    html: str
+    view_count: int
+    voteup_count: int
+    votedown_count: int
+    logined_voteup_count: int
+    comments: Callable
+    time: datetime
+    subject: str = None
+
+    def __str__(self):
+        return f"{self.subject or ''}\t|{self.id}\t|{self.time.isoformat()}\t|{self.author}\t|{self.title}({self.comment_count}) +{self.voteup_count} -{self.votedown_count}\n{self.contents}"
+
+
+@dataclass
+class Comment:
+    id: str
+    is_reply: bool
+    author: str
+    author_id: str  # (고닉일 경우 아이디)
+    contents: str
+    dccon: str  # (디시콘일경우 디시콘 주소)
+    voice: str
+    time: datetime  # (보이스리플일경우 보이스리플 주소)
+
+    def __str__(self):
+        return f"ㄴ{'ㄴ' if self.is_reply else ''} {self.author}: {self.contents or ''}{self.dccon or ''}{self.voice or ''} | {self.time}"
 
 
 class API:
@@ -655,12 +647,12 @@ if version.major >= 3 and version.minor >= 8:
 
         async def test_read_minor_board_one(self):
             async for doc in self.api.board(board_id='aoegame', num=1):
-                for attr in doc.__slots__:
-                    if attr == 'subject':
+                for field in fields(doc):
+                    if field.name == 'subject':
                         continue
-                    val = getattr(doc, attr)
-                    self.assertNotEqual(val, None, attr)
-                    self.assertNotEqual(val, '', attr)
+                    val = getattr(doc, field.name)
+                    self.assertNotEqual(val, None, field.name)
+                    self.assertNotEqual(val, '', field.name)
                 self.assertGreater(
                     doc.time, datetime.now() - timedelta(hours=1))
                 self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
@@ -668,12 +660,12 @@ if version.major >= 3 and version.minor >= 8:
         async def test_read_minor_board_many(self):
             count = 0
             async for doc in self.api.board(board_id='aoegame', num=201):
-                for attr in doc.__slots__:
-                    if attr == 'subject':
+                for field in fields(doc):
+                    if field.name == 'subject':
                         continue
-                    val = getattr(doc, attr)
-                    self.assertNotEqual(val, None, attr)
-                    self.assertNotEqual(val, '', attr)
+                    val = getattr(doc, field.name)
+                    self.assertNotEqual(val, None, field.name)
+                    self.assertNotEqual(val, '', field.name)
                 count += 1
                 self.assertGreater(
                     doc.time, datetime.now() - timedelta(hours=1))
@@ -690,12 +682,12 @@ if version.major >= 3 and version.minor >= 8:
                 if not comments:
                     continue
                 for comm in comments:
-                    for attr in comm.__slots__:
-                        if attr in ['contents', 'dccon', 'voice', 'author_id']:
+                    for field in fields(comm):
+                        if field.name in ['contents', 'dccon', 'voice', 'author_id']:
                             continue
-                        val = getattr(comm, attr)
-                        self.assertNotEqual(val, None, attr)
-                        self.assertNotEqual(val, '', attr)
+                        val = getattr(comm, field.name)
+                        self.assertNotEqual(val, None, field.name)
+                        self.assertNotEqual(val, '', field.name)
                     self.assertNotEqual(
                         comm.contents or comm.dccon or comm.voice, None)
                     self.assertGreater(
@@ -706,12 +698,12 @@ if version.major >= 3 and version.minor >= 8:
 
         async def test_read_board_one(self):
             async for doc in self.api.board(board_id='programming', num=1):
-                for attr in doc.__slots__:
-                    if attr == 'subject':
+                for field in fields(doc):
+                    if field.name == 'subject':
                         continue
-                    val = getattr(doc, attr)
-                    self.assertNotEqual(val, None, attr)
-                    self.assertNotEqual(val, '', attr)
+                    val = getattr(doc, field.name)
+                    self.assertNotEqual(val, None, field.name)
+                    self.assertNotEqual(val, '', field.name)
                 self.assertGreater(
                     doc.time, datetime.now() - timedelta(hours=24))
                 self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
@@ -719,12 +711,12 @@ if version.major >= 3 and version.minor >= 8:
         async def test_read_board_many(self):
             count = 0
             async for doc in self.api.board(board_id='programming', num=201):
-                for attr in doc.__slots__:
-                    if attr == 'subject':
+                for field in fields(doc):
+                    if field.name == 'subject':
                         continue
-                    val = getattr(doc, attr)
-                    self.assertNotEqual(val, None, attr)
-                    self.assertNotEqual(val, '', attr)
+                    val = getattr(doc, field.name)
+                    self.assertNotEqual(val, None, field.name)
+                    self.assertNotEqual(val, '', field.name)
                 count += 1
                 self.assertGreater(
                     doc.time, datetime.now() - timedelta(hours=24))
@@ -737,12 +729,12 @@ if version.major >= 3 and version.minor >= 8:
                 if not comments:
                     continue
                 for comm in comments:
-                    for attr in comm.__slots__:
-                        if attr in ['contents', 'dccon', 'voice', 'author_id']:
+                    for field in fields(comm):
+                        if field.name in ['contents', 'dccon', 'voice', 'author_id']:
                             continue
-                        val = getattr(comm, attr)
-                        self.assertNotEqual(val, None, attr)
-                        self.assertNotEqual(val, '', attr)
+                        val = getattr(comm, field.name)
+                        self.assertNotEqual(val, None, field.name)
+                        self.assertNotEqual(val, '', field.name)
                     self.assertNotEqual(
                         comm.contents or comm.dccon or comm.voice, None)
                     self.assertGreater(
@@ -754,23 +746,23 @@ if version.major >= 3 and version.minor >= 8:
         async def test_minor_document(self):
             doc = await (await self.api.board(board_id='aoegame', num=1).__anext__()).document()
             self.assertNotEqual(doc, None)
-            for attr in doc.__slots__:
-                if attr in ['author_id', 'subject']:
+            for field in fields(doc):
+                if field.name in ['author_id', 'subject']:
                     continue
-                val = getattr(doc, attr)
-                self.assertNotEqual(val, None, attr)
-                self.assertNotEqual(val, '', attr)
+                val = getattr(doc, field.name)
+                self.assertNotEqual(val, None, field.name)
+                self.assertNotEqual(val, '', field.name)
             self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
             self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
 
         async def test_document(self):
             doc = await (await self.api.board(board_id='programming', num=1).__anext__()).document()
             self.assertNotEqual(doc, None)
-            for attr in doc.__slots__:
-                if attr in ['author_id', 'subject']:
+            for field in fields(doc):
+                if field.name in ['author_id', 'subject']:
                     continue
-                val = getattr(doc, attr)
-                self.assertNotEqual(val, None, attr)
+                val = getattr(doc, field.name)
+                self.assertNotEqual(val, None, field.name)
             self.assertGreater(doc.time, datetime.now() - timedelta(hours=1))
             self.assertLess(doc.time, datetime.now() + timedelta(hours=1))
         '''
