@@ -108,9 +108,11 @@ class DocumentIndex:
     comments: Callable
     subject: str
     image_available: bool
+    is_recommend: bool
 
     def __str__(self):
-        return f"{self.subject or ''}\t|{self.id}\t|{self.time.isoformat()}\t|{self.author}\t|{self.title}({self.comment_count}) +{self.voteup_count}"
+        recommend = "*" if self.is_recommend else ""
+        return f"{recommend}{self.subject or ''}\t|{self.id}\t|{self.time.isoformat()}\t|{self.author}\t|{self.title}({self.comment_count}) +{self.voteup_count}"
 
 
 @dataclass
@@ -215,10 +217,8 @@ class API:
                     time = self.__parse_time(doc[0][1][1].text)
                     view_count = int(doc[0][1][2].text.split()[-1])
                     voteup_count = int(doc[0][1][3].text_content().split()[-1])
-                if "sp-lst-img" in doc[0][0][0].get("class"):
-                    image_available = True
-                else:
-                    image_available = False
+                image_available = "sp-lst-img" in doc[0][0][0].get("class")
+                is_recommend = "-reco" in doc[0][0][0].get("class")
                 title = doc[0][0][1].text
                 indexdata = DocumentIndex(
                     id=document_id,
@@ -233,7 +233,8 @@ class API:
                     comments=lambda: self.comments(board_id, document_id),
                     time=time,
                     subject=subject,
-                    image_available=image_available
+                    image_available=image_available,
+                    is_recommend=is_recommend
                 )
                 yield (indexdata)
                 num -= 1
