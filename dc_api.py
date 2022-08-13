@@ -79,15 +79,13 @@ class Image:
 
     async def load(self):
         headers = GET_HEADERS.copy()
-        headers["Referer"] = "https://m.dcinside.com/board/{}/{}".format(
-            self.board_id, self.document_id)
+        headers["Referer"] = f"https://m.dcinside.com/board/{self.board_id}/{self.document_id}"
         async with self.session.get(self.src, cookies=GALLERY_POSTS_COOKIES, headers=headers) as res:
             return await res.read()
 
     async def download(self, path):
         headers = GET_HEADERS.copy()
-        headers["Referer"] = "https://m.dcinside.com/board/{}/{}".format(
-            self.board_id, self.document_id)
+        headers["Referer"] = f"https://m.dcinside.com/board/{self.board_id}/{self.document_id}"
         async with self.session.get(self.src, cookies=GALLERY_POSTS_COOKIES, headers=headers) as res:
             bytes = await res.read()
             ext = filetype.guess(bytes).extension
@@ -191,11 +189,9 @@ class API:
         page = start_page
         while num:
             if recommend:
-                url = "https://m.dcinside.com/board/{}?recommend=1&page={}".format(
-                    board_id, page)
+                url = f"https://m.dcinside.com/board/{board_id}?recommend=1&page={page}"
             else:
-                url = "https://m.dcinside.com/board/{}?page={}".format(
-                    board_id, page)
+                url = f"https://m.dcinside.com/board/{board_id}?page={page}"
             async with self.session.get(url) as res:
                 text = await res.text()
                 parsed = lxml.html.fromstring(text)
@@ -249,8 +245,7 @@ class API:
                 page += 1
 
     async def document(self, board_id, document_id):
-        url = "https://m.dcinside.com/board/{}/{}".format(
-            board_id, document_id)
+        url = f"https://m.dcinside.com/board/{board_id}/{document_id}"
         async with self.session.get(url) as res:
             text = await res.text()
             parsed = lxml.html.fromstring(text)
@@ -306,7 +301,7 @@ class API:
             return None
         ''' !TODO: use an alternative(PC) protocol to fetch document
         else:
-            url = "https://gall.dcinside.com/{}?no={}".format(board_id, document_id)
+            url = f"https://gall.dcinside.com/{board_id}?no={document_id}"
             res = sess.get(url, timeout=TIMEOUT, headers=ALTERNATIVE_GET_HEADERS)
             parsed = lxml.html.fromstring(res.text)
             doc_content = parsed.xpath("//div[@class='thum-txtin']")[0]
@@ -328,8 +323,7 @@ class API:
                     id=li.get("no"),
                     is_reply="comment-add" in li.get("class",
                                                      "").strip().split(),
-                    author=li[0].text + ("{}".format(li[0][0].text)
-                                         if li[0][0].text else ""),
+                    author=li[0].text + (li[0][0].text if li[0][0].text else ""),
                     author_id=li[0][1].get(
                         "data-info", None) if len(li[0]) > 1 else None,
                     contents='\n'.join(i.strip() for i in li[1].itertext()),
@@ -351,8 +345,7 @@ class API:
                 break
 
     async def write_comment(self, board_id, document_id, contents="", dccon_id="", dccon_src="", parent_comment_id="", name="", password="", is_minor=False):
-        url = "https://m.dcinside.com/board/{}/{}".format(
-            board_id, document_id)
+        url = f"https://m.dcinside.com/board/{board_id}/{document_id}"
         async with self.session.get(url) as res:
             parsed = lxml.html.fromstring(await res.text())
         hide_robot = parsed.xpath(
@@ -392,8 +385,7 @@ class API:
         if dccon_id:
             payload["detail_idx"] = dccon_id
         if dccon_src:
-            payload["comment_memo"] = "<img src='{}' class='written_dccon' alt='1'>".format(
-                dccon_src)
+            payload["comment_memo"] = f"<img src='{dccon_src}' class='written_dccon' alt='1'>"
         # async with self.session.post(url, headers=header, data=payload, cookies=cookies) as res:
         async with self.session.post(url, headers=header, data=payload, cookies=cookies) as res:
             parsed = await res.text()
@@ -409,12 +401,10 @@ class API:
 
     async def modify_document(self, board_id, document_id, title="", contents="", name="", password="", is_minor=False):
         if not password:
-            url = "https://m.dcinside.com/write/{}/modify/{}".format(
-                board_id, document_id)
+            url = f"https://m.dcinside.com/write/{board_id}/modify/{document_id}"
             async with self.session.get(url) as res:
                 return await self.__write_or_modify_document(board_id, title, contents, name, password, intermediate=await res.text(), intermediate_referer=url, document_id=document_id, is_minor=is_minor)
-        url = "https://m.dcinside.com/confirmpw/{}/{}?mode=modify".format(
-            board_id, document_id)
+        url = f"https://m.dcinside.com/confirmpw/{board_id}/{document_id}?mode=modify"
         referer = url
         async with self.session.get(url) as res:
             parsed = lxml.html.fromstring(await res.text())
@@ -449,15 +439,13 @@ class API:
         }
         header = POST_HEADERS.copy()
         header["Referer"] = referer
-        url = "https://m.dcinside.com/write/{}/modify/{}".format(
-            board_id, document_id)
+        url = f"https://m.dcinside.com/write/{board_id}/modify/{document_id}"
         async with self.session.post(url, headers=header, data=payload) as res:
             return await self.__write_or_modify_document(board_id, title, contents, name, password, intermediate=await res.text(), intermediate_referer=url, document_id=document_id)
 
     async def remove_document(self, board_id, document_id, password="", is_minor=False):
         if not password:
-            url = "https://m.dcinside.com/board/{}/{}".format(
-                board_id, document_id)
+            url = f"https://m.dcinside.com/board/{board_id}/{document_id}"
             async with self.session.get(url) as res:
                 parsed = lxml.html.fromstring(await res.text())
             csrf_token = parsed.xpath(
@@ -473,8 +461,7 @@ class API:
             if res.find("true") < 0:
                 raise Exception("Error while removing: " + unquote(str(res)))
             return True
-        url = "https://m.dcinside.com/confirmpw/{}/{}?mode=del".format(
-            board_id, document_id)
+        url = f"https://m.dcinside.com/confirmpw/{board_id}/{document_id}?mode=del"
         referer = url
         async with self.session.get(url) as res:
             parsed = lxml.html.fromstring(await res.text())
@@ -511,7 +498,7 @@ class API:
 
     async def __write_or_modify_document(self, board_id, title="", contents="", name="", password="", intermediate=None, intermediate_referer=None, document_id=None, is_minor=False):
         if not intermediate:
-            url = "https://m.dcinside.com/write/{}".format(board_id)
+            url = f"https://m.dcinside.com/write/{board_id}"
             async with self.session.get(url) as res:
                 parsed = lxml.html.fromstring(await res.text())
         else:
