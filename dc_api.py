@@ -95,7 +95,7 @@ class Document:
         self.time = time
         self.subject = None
     def __str__(self):
-        return f"{self.subject or ''}\t|{self.id}\t|{self.time.isoformat()}\t|{self.author}\t|{self.title}({self.comment_count}) +{self.voteup_count} -{self.votedown_count}\n{self.contents}"
+        return f"{self.subject or ''}\t|{self.id}\t|{self.time.isoformat()}\t|{self.author}\t|{self.title} +{self.voteup_count} -{self.votedown_count}\n{self.contents}"
 
 class Comment:
     __slots__ = ["id", "is_reply", "author", "author_id", "contents", "dccon", "voice", "time"]
