@@ -541,7 +541,7 @@ class API:
             if time.find(":") > 0:
                 return datetime.strptime(time, "%m.%d %H:%M").replace(year=today.year)
             else:
-                return datetime.strptime(time, "%y.%m.%d").replace(year=today.year, hour=23, minute=59, second=59)
+                return datetime.strptime(time, "%y.%m.%d").replace(hour=23, minute=59, second=59)
         elif len(time) <= 16:
             if time.count(".") >= 2:
                 return datetime.strptime(time, "%Y.%m.%d %H:%M")
