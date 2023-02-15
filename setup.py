@@ -21,6 +21,7 @@ setuptools.setup(
         'lxml',
         'aiohttp',
         'tenacity',
+        'filetype',
     ],
     entry_points     = """
            [console_scripts]
