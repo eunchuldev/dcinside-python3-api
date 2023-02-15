@@ -112,9 +112,10 @@ class DocumentIndex:
     subject: str
     image_available: bool
     is_recommend: bool
+    is_best: bool
 
     def __str__(self):
-        recommend = "*" if self.is_recommend else ""
+        recommend = "*" if self.is_recommend or self.is_best else ""
         return f"{recommend}{self.subject or ''}\t|{self.id}\t|{self.time.isoformat()}\t|{self.author}\t|{self.title}({self.comment_count}) +{self.voteup_count}"
 
 
@@ -222,6 +223,7 @@ class API:
                     voteup_count = int(doc[0][1][3].text_content().split()[-1])
                 image_available = "sp-lst-img" in doc[0][0][0].get("class")
                 is_recommend = "-reco" in doc[0][0][0].get("class")
+                is_best = "-best" in doc[0][0][0].get("class")
                 title = doc[0][0][1].text
                 indexdata = DocumentIndex(
                     id=document_id,
@@ -237,7 +239,8 @@ class API:
                     time=time,
                     subject=subject,
                     image_available=image_available,
-                    is_recommend=is_recommend
+                    is_recommend=is_recommend,
+                    is_best=is_best,
                 )
                 yield (indexdata)
                 num -= 1
