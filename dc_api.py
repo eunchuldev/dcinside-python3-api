@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 import aiohttp
 import filetype
 import lxml.html
+from aiohttp.web import HTTPServiceUnavailable
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -501,7 +502,10 @@ class API:
         return True
 
     async def write_document(self, board_id, title="", contents="", name="", password="", is_minor=False):
-        return await self.__write_or_modify_document(board_id, title, contents, name, password, is_minor=is_minor)
+        res = await self.__write_or_modify_document(board_id, title, contents, name, password, is_minor=is_minor)
+        if "잠시후 다시 이용 바랍니다" in res:
+            raise HTTPServiceUnavailable
+        return res
 
     async def __write_or_modify_document(self, board_id, title="", contents="", name="", password="", intermediate=None, intermediate_referer=None, document_id=None, is_minor=False):
         if not intermediate:
@@ -580,7 +584,7 @@ class API:
             "_ga": "GA1.2.693521455.1588839880",
         }
         async with self.session.post(url, headers=header, data=payload, cookies=cookies) as res:
-            res = await res.text()
+            return await res.text()
 
     async def __access(self, token_verify, target_url, require_conkey=True, csrf_token=None):
         if require_conkey:
