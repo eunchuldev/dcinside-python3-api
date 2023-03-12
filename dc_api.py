@@ -256,7 +256,8 @@ class API:
                     html= lxml.html.tostring(doc_content, encoding=str),
                     view_count= int(parsed.xpath("//ul[@class='ginfo2']")[1][0].text.strip().split()[1]),
                     voteup_count= int(parsed.xpath("//span[@id='recomm_btn']")[0].text.strip()),
-                    votedown_count= int(parsed.xpath("//span[@id='nonrecomm_btn']")[0].text.strip()),
+                    #votedown_count= int(parsed.xpath("//span[@id='nonrecomm_btn']")[0].text.strip()),
+                    votedown_count= int(parsed.xpath("//span[@id='nonrecomm_btn']")[0].text.strip()) if parsed.xpath("//span[@id='nonrecomm_btn']") else 0 ,
                     logined_voteup_count= int(parsed.xpath("//span[@id='recomm_btn_member']")[0].text.strip()),
                     comments= lambda: self.comments(board_id, document_id),
                     time= self.__parse_time(time)
